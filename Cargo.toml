@@ -1,0 +1,12 @@
+[package]
+name = "ferret_hypergraph"
+version = "0.0.1"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0.130", features = ["derive"] }
+tabbycat = { version = "0.1.2", features = ["attributes"] }
+indexmap = {version = "1.7.0", features = ["serde-1"] }
+thiserror = "1.0.29"
