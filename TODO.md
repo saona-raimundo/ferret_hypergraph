@@ -1,2 +1,98 @@
 # TODO
 
+Finishing add_* in hypergraph
+
+## Hypergraph
+
+### Create
+
+- with_hasher()
+
+### Builder
+
+- [with_capacity_and_hasher()](https://docs.rs/indexmap/1.7.0/indexmap/map/struct.IndexMap.html#method.with_capacity_and_hasher)
+- with_hasher()
+- with_hashers()
+- with_capacity()
+
+### Information
+
+- count
+
+### Getters
+
+- neighbors (iterator over ids)
+- neighbors_mut (iterator)
+- neighbors_directed (iterator)
+- neighbors_directed_mut (iterator)
+- Ids (iterator)
+- References (iterator)
+- References_mut (iterator)
+- externals
+
+### Walkers
+
+Check out [Walker](https://docs.rs/petgraph/0.6.0/petgraph/visit/trait.Walker.html) and [Walker trait](https://github.com/petgraph/petgraph/issues/13)
+
+This is to visit without borrowing from the data-structure.
+
+I propose to simply clone the ids (`Vec<ID>`).
+
+### Conversions
+
+- Map
+- map_nodes
+- map_node(&mut self, index, function: FnMut(&mut N)) -> &mut Self
+- map_edges
+- map_edge
+- map_links
+- map_link
+- map_hypergraphs
+- map_hypergraph
+- dot
+- into_graph(&self) -> petgraph::Graph<&Vec<usize>, &Vec<usize>>
+- into_hypergraph(&self) -> hypergraph::Hypegraph<&Vec<usize>, &Vec<usize>>
+
+### Optimizations
+
+- Shrink to fit
+
+### Index
+
+- Index
+- IndexMut
+- Vec<usize>
+
+### Removal
+
+- remove_*(s)
+  - Recall all the invariants
+    - Edges need at least two vertices
+    - Links need source and target
+    - Hypergraph includes its content
+
+### Filtering
+
+- filter_ref(&self) -> Hypergraph<&*>
+- filter_ref_mut(&mut self) -> Hypergraph<&mut *>
+- filter(self) -> Hypergraph<*>
+
+### Git
+
+- merge
+- [diff](https://github.com/petgraph/petgraph/issues/320)
+
+### [Extend](https://doc.rust-lang.org/nightly/core/iter/trait.Extend.html)
+
+Increase your current hypergraph by other elements. 
+
+- extend()
+- extend_with_nodes()
+- extend_with_edges()
+- extend_with_links()
+- extend_with_hypergraphs()
+
+### Visualization
+
+- draw()
+  Check out [petgraph_evcxr](https://docs.rs/petgraph-evcxr/0.2.0/src/petgraph_evcxr/lib.rs.html#23-45)

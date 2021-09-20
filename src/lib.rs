@@ -22,7 +22,7 @@
 
 mod hyper_graph;
 
-pub use hyper_graph::HyperGraph;
+pub use hyper_graph::Hypergraph;
 
 #[cfg(test)]
 mod tests {
