@@ -1,23 +1,18 @@
 # TODO
 
-Finishing add_* in hypergraph
-
 ## Hypergraph
 
-### Create
+### Removal
 
-- with_hasher()
-
-### Builder
-
-- [with_capacity_and_hasher()](https://docs.rs/indexmap/1.7.0/indexmap/map/struct.IndexMap.html#method.with_capacity_and_hasher)
-- with_hasher()
-- with_hashers()
-- with_capacity()
-
-### Information
-
-- count
+- remove_element
+- remove_element_by_value
+  - Need comparison
+  - Maybe implement getters -> ids first!
+- Recall all the invariants
+  - Edges need at least two vertices
+  - Edges include links (that might be in other hypergraphs)
+  - Links need source and target
+  - Hypergraph includes its content
 
 ### Getters
 
@@ -62,14 +57,6 @@ I propose to simply clone the ids (`Vec<ID>`).
 - Index
 - IndexMut
 - Vec<usize>
-
-### Removal
-
-- remove_*(s)
-  - Recall all the invariants
-    - Edges need at least two vertices
-    - Links need source and target
-    - Hypergraph includes its content
 
 ### Filtering
 
