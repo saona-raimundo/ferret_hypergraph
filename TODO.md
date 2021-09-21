@@ -7,7 +7,7 @@
 - remove_element
 - remove_element_by_value
   - Need comparison
-  - Maybe implement getters -> ids first!
+  - Use get::ids
 - Recall all the invariants
   - Edges need at least two vertices
   - Edges include links (that might be in other hypergraphs)

@@ -802,6 +802,8 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
 mod iter {
     use crate::Hypergraph;
 
+    use walk::IdWalk;
+
     /// Iterator over the ids of a hypergraph.
     ///
     /// Iterator element type is `Vec<usize>`.
@@ -835,16 +837,102 @@ mod iter {
                 next: Some(vec![]),
             }
         }
+        pub fn detach(self) -> IdWalk {
+            IdWalk::new(self.next)
+        }
     }
 
-    // /// A “walker” object that can be used to step through a hypergraph without borrowing it.
-    // ///
-    // /// Created with [`.detach()`](struct.IdIter.html#method.detach).
-    // #[derive(Debug)]
-    // pub struct IdWalker {
-    //     skip_start: Vec<usize>,
-    //     next: Vec<usize>,
-    // }
+    mod walk {
+        use crate::Hypergraph;
+        /// A “walker” object that can be used to step through a hypergraph without borrowing it.
+        ///
+        /// Created with [`.detach()`](struct.IdIter.html#method.detach).
+        #[derive(Debug)]
+        pub struct IdWalk {
+            next_id: Option<Vec<usize>>,
+        }
+        impl IdWalk {
+            pub fn new(next_id: impl Into<Option<Vec<usize>>>) -> Self {
+                IdWalk {
+                    next_id: next_id.into(),
+                }
+            }
+            /// Step to the next id in the walk for `hypergraph`.
+            ///
+            /// The next id is always other than the starting point where `self` was created.
+            fn next<N, E, H, L, Ty>(
+                &mut self,
+                hypergraph: &Hypergraph<N, E, H, L, Ty>,
+            ) -> Option<Vec<usize>> {
+                match &self.next_id {
+                    None => None,
+                    Some(id) => {
+                        if hypergraph.contains(id) {
+                            let mut next = hypergraph.next_id(id);
+                            core::mem::swap(&mut next, &mut self.next_id);
+                            next
+                        } else {
+                            // Update to the next valid id in hypergraph
+                            self.next_id = hypergraph.next_id(id);
+                            self.next(hypergraph)
+                        }
+                    }
+                }
+            }
+        }
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+
+            #[test]
+            fn next() {
+                let mut h = Hypergraph::new();
+                h.add_node("zero", []).unwrap();
+                h.add_node("one", []).unwrap();
+                h.add_edge([0], [1], "two", []).unwrap();
+                h.add_link([0], [2], "three", []).unwrap();
+                h.add_hypergraph("six", []).unwrap();
+                let mut id_walk = IdWalk::new(vec![]);
+
+                assert_eq!(id_walk.next(&h).unwrap(), vec![]);
+
+                for i in 0..7 {
+                    assert_eq!(id_walk.next(&h).unwrap(), vec![i]);
+                }
+                assert_eq!(id_walk.next(&h), None);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn next() {
+            let mut h = Hypergraph::new();
+            h.add_node("zero", []).unwrap();
+            h.add_node("one", []).unwrap();
+            h.add_edge([0], [1], "two", []).unwrap();
+            h.add_link([0], [2], "three", []).unwrap();
+            h.add_hypergraph("six", []).unwrap();
+            let id_iter = IdIter::new(&h);
+
+            assert_eq!(
+                id_iter.collect::<Vec<_>>(),
+                vec![
+                    vec![],
+                    vec![0],
+                    vec![1],
+                    vec![2],
+                    vec![3],
+                    vec![4],
+                    vec![5],
+                    vec![6]
+                ]
+            );
+        }
+    }
 }
 
 /// # Get
@@ -888,7 +976,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
                 },
             }
         }
-        if self.contains_element(&id) {
+        if self.contains(&id) {
             return Some(id);
         } else {
             return self.next_id(id);
@@ -900,6 +988,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         self.next_id
     }
 
+    /// Returns an iterator over all valid ids of `self`.
     pub fn ids<'a>(&'a self) -> IdIter<'a, N, E, H, L, Ty> {
         IdIter::new(&self)
     }
@@ -1362,12 +1451,12 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
 
     /// Returns `true` if `id` corresponds to an existing element of `self`
     /// and it can be linked (node, edge or hypergraph).
-    fn contains_linkable_element(&self, id: impl AsRef<[usize]>) -> bool {
+    fn contains_linkable(&self, id: impl AsRef<[usize]>) -> bool {
         let id = id.as_ref();
         self.contains_edge(id) | self.contains_hypegraph(id) | self.contains_node(id)
     }
 
-    pub fn contains_element(&self, id: impl AsRef<[usize]>) -> bool {
+    pub fn contains(&self, id: impl AsRef<[usize]>) -> bool {
         let id = id.as_ref();
         self.contains_edge(id)
             | self.contains_link(id)
@@ -1636,16 +1725,16 @@ mod tests {
     }
 
     #[test]
-    fn contains_linkable_element() {
+    fn contains_linkable() {
         let mut h = Hypergraph::new();
         let node_id = h.add_node("zero", []).unwrap();
         let hypergraph_id = h.add_hypergraph("one", []).unwrap();
         let edge_id = h.add_edge([0], [1], "two", []).unwrap();
         let link_id = h.add_link([0], [2], "three", []).unwrap();
-        assert!(h.contains_linkable_element(node_id));
-        assert!(h.contains_linkable_element(hypergraph_id));
-        assert!(h.contains_linkable_element(edge_id));
-        assert!(!h.contains_linkable_element(link_id));
+        assert!(h.contains_linkable(node_id));
+        assert!(h.contains_linkable(hypergraph_id));
+        assert!(h.contains_linkable(edge_id));
+        assert!(!h.contains_linkable(link_id));
     }
 
     #[test]
