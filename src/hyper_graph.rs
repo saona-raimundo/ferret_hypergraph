@@ -2,6 +2,7 @@ use core::fmt::Debug;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
+use crate::hyper_graph::iter::IdIter;
 /// Marker for main hypergrpah
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Main;
@@ -798,99 +799,110 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     }
 }
 
-// mod iter {
-//     use crate::Hypergraph;
+mod iter {
+    use crate::Hypergraph;
 
-//     /// Iterator over the ids of a hypergraph.
-//     ///
-//     /// Iterator element type is `Vec<usize>`.
-//     ///
-//     /// Created with [`.ids()`][1].
-//     ///
-//     /// [1]: struct.G\Hypergraph.html#method.ids
-//     #[derive(Debug)]
-//     pub struct IdIter<'a, N, E, H, L, Ty> {
-//         /// Original hypergraph (main or sub)
-//         original: &'a Hypergraph<N, E, H, L, Ty>,
-//         /// Id of original
-//         original_id: Vec<usize>,
-//         /// Local subhypergraph for ease of access
-//         local_subhypergraph: Option<&'a Hypergraph<N, E, H, L, Sub>>,
-//         /// Id of local_subhypergraph
-//         local_hypergraph_id: Vec<usize>,
-//         /// Current type of element to cycle
-//         current_element_type: ElementType,
-//         /// Next local_id: None means there are no more elements in original
-//         next_local_id: Option<usize>,
-//     }
+    /// Iterator over the ids of a hypergraph.
+    ///
+    /// Iterator element type is `Vec<usize>`.
+    ///
+    /// Created with [`.ids()`][1].
+    ///
+    /// [1]: struct.G\Hypergraph.html#method.ids
+    #[derive(Debug)]
+    pub struct IdIter<'a, N, E, H, L, Ty> {
+        hypergraph: &'a Hypergraph<N, E, H, L, Ty>,
+        next: Option<Vec<usize>>,
+    }
 
-//     impl<'a, N, E, H, L, Ty> Iterator for IdIter<&'a Hypergraph<N, E, H, L, Ty>> {
-//         type Item = Vec<usize>;
-//         fn next(&mut self) -> Option<<Self::Item> {
-//             match self.next_local_id {
-//                  Some(local_id) => {
-//                     // Wrap up the return value
-//                     let mut result = self.original_id.clone();
-//                     result.extend(&local_subhypergraph_id);
-//                     result.push(local_id);
-//                     // Search for next element
-//                     let hypergraph = self.original.hypergraph(local_hypergraph_id);
+    impl<'a, N, E, H, L, Ty> Iterator for IdIter<'a, N, E, H, L, Ty> {
+        type Item = Vec<usize>;
+        fn next(&mut self) -> std::option::Option<<Self as Iterator>::Item> {
+            match &self.next {
+                Some(id) => {
+                    let mut next = self.hypergraph.next_id(id);
+                    core::mem::swap(&mut next, &mut self.next);
+                    next
+                }
+                None => None,
+            }
+        }
+    }
+    impl<'a, N, E, H, L, Ty> IdIter<'a, N, E, H, L, Ty> {
+        pub fn new(hypergraph: &'a Hypergraph<N, E, H, L, Ty>) -> Self {
+            IdIter {
+                hypergraph,
+                next: Some(vec![]),
+            }
+        }
+    }
 
-//                     if let Some(h) = self.local_subhypergraph {
-//                         match self.current_element_type {
-//                             ElementType::Edge => {
-//                                 let local_index = h.edges.get_index_of(local_id);
-//                                 match h.edges.get_index(local_index + 1) {
-//                                     Some((next_local_id, _)) => {
-//                                         self.next_local_id = next_local_id;
-//                                     }
-//                                     None => {
-//                                         !!!!!
-//                                     }
-//                                 }
-//                                 if local_index < h.edge_count() - 1 {
-//                                     self.next_local_id = Some(lo)
-//                                 }
-
-//                             }
-//                             _ => todo!(),
-//                         }
-//                     } else {
-//                         self.original.element_value()
-//                     }
-
-//                     return result
-//                  }
-//                  None => return None,
-//              }
-//             let next = self.next.clone();
-//             let local_id =
-//             self.next =
-//             next
-//         }
-//     }
-
-//     /// A “walker” object that can be used to step through a hypergraph without borrowing it.
-//     ///
-//     /// Created with [`.detach()`](struct.IdIter.html#method.detach).
-//     #[derive(Debug)]
-//     pub struct IdWalker {
-//         skip_start: Vec<usize>,
-//         next: Vec<usize>,
-//     }
-// }
+    // /// A “walker” object that can be used to step through a hypergraph without borrowing it.
+    // ///
+    // /// Created with [`.detach()`](struct.IdIter.html#method.detach).
+    // #[derive(Debug)]
+    // pub struct IdWalker {
+    //     skip_start: Vec<usize>,
+    //     next: Vec<usize>,
+    // }
+}
 
 /// # Get
 ///
 /// Access node and edge weights (associated data).
 impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    // pub fn next_id(&self, id: impl AsRef<[usize]>) -> Option<Vec<usize>> {
-    //     self.element_type(id);
-    // }
+    /// Returns the next valid id.
+    ///
+    /// Returns `None` if `id` there is no valid id that bigger than `id`.
+    ///
+    /// Order is lexicographic.
+    pub fn next_id(&self, id: impl AsRef<[usize]>) -> Option<Vec<usize>> {
+        let mut id = id.as_ref().to_vec();
+        let bound = self.id_bound();
+        if id > bound {
+            return None;
+        } else if id.is_empty() {
+            id = vec![0];
+        } else {
+            match self.element_type(&id) {
+                None => {
+                    let last_local_id = id.last_mut().unwrap(); // Never fails since id is not empty
+                    *last_local_id += 1;
+                    if *last_local_id >= bound[id.len() - 1] {
+                        id.pop(); // Go back one level
+                        let last_local_id = match id.last_mut() {
+                            None => return None,
+                            Some(i) => i,
+                        };
+                        *last_local_id += 1;
+                    }
+                }
+                Some(element_type) => match element_type {
+                    ElementType::Edge | ElementType::Link | ElementType::Node => {
+                        let last_local_id = id.last_mut().unwrap(); // Never fails since id is not empty
+                        *last_local_id += 1;
+                    }
+                    ElementType::Hypergraph => {
+                        id.push(0);
+                    }
+                },
+            }
+        }
+        if self.contains_element(&id) {
+            return Some(id);
+        } else {
+            return self.next_id(id);
+        }
+    }
 
-    // pub fn ids<'a>(&'a self) -> IdIter<'a, Self> {
-    //     todo!()
-    // }
+    /// Returns the local id that will be given to the next element added.
+    pub fn next_local_id(&self) -> usize {
+        self.next_id
+    }
+
+    pub fn ids<'a>(&'a self) -> IdIter<'a, N, E, H, L, Ty> {
+        IdIter::new(&self)
+    }
 
     /// Returns the class marker.
     pub fn class(&self) -> &Ty {
@@ -1434,6 +1446,20 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     pub fn node_count(&self) -> usize {
         self.nodes.len()
     }
+
+    /// Returns a bound on valid ids.
+    ///
+    /// All valid ids are strictly smaller than the output (in lexicographic order).
+    pub fn id_bound(&self) -> Vec<usize> {
+        let mut result = vec![self.next_local_id()];
+        match self.hypergraphs.last() {
+            None => result,
+            Some((local_id, (h, _))) => {
+                result.extend(h.id_bound());
+                result
+            }
+        }
+    }
 }
 impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     pub fn is_main(&self) -> bool {
@@ -1620,5 +1646,47 @@ mod tests {
         assert!(h.contains_linkable_element(hypergraph_id));
         assert!(h.contains_linkable_element(edge_id));
         assert!(!h.contains_linkable_element(link_id));
+    }
+
+    #[test]
+    fn next_id() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(h.next_id([]).unwrap(), vec![0]);
+        assert_eq!(h.next_id([0]).unwrap(), vec![1]);
+        assert_eq!(h.next_id([1]).unwrap(), vec![2]);
+        assert_eq!(h.next_id([2]).unwrap(), vec![3]);
+        assert_eq!(h.next_id([3]).unwrap(), vec![4]);
+        assert_eq!(h.next_id([4]).unwrap(), vec![5]);
+        assert_eq!(h.next_id([5]).unwrap(), vec![6]);
+        assert_eq!(h.next_id([6]), None);
+        assert_eq!(h.next_id([0, 0]).unwrap(), vec![1]);
+    }
+
+    #[test]
+    fn ids() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(
+            h.ids().collect::<Vec<_>>(),
+            vec![
+                vec![],
+                vec![0],
+                vec![1],
+                vec![2],
+                vec![3],
+                vec![4],
+                vec![5],
+                vec![6]
+            ]
+        );
     }
 }
