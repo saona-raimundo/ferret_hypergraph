@@ -286,6 +286,36 @@ impl<N, E, H, L, Id> From<ElementExt<N, E, H, L, Id>> for Element<N, E, H, L, Id
 
 // impl TryInto<ElementExt> for Element ...
 
+#[derive(Debug)]
+pub enum ElementType {
+    Edge,
+    Hypergraph,
+    Link,
+    Node,
+}
+
+impl ElementType {
+    pub fn wrapping_next(self) -> Self {
+        match self {
+            ElementType::Edge => ElementType::Hypergraph,
+            ElementType::Hypergraph => ElementType::Link,
+            ElementType::Link => ElementType::Node,
+            ElementType::Node => ElementType::Edge,
+        }
+    }
+}
+
+impl<N, E, H, L, Id> From<Element<N, E, H, L, Id>> for ElementType {
+    fn from(element: Element<N, E, H, L, Id>) -> Self {
+        match element {
+            Element::Edge { .. } => ElementType::Edge,
+            Element::Link { .. } => ElementType::Link,
+            Element::Hypergraph { .. } => ElementType::Hypergraph,
+            Element::Node { .. } => ElementType::Node,
+        }
+    }
+}
+
 /// Element extended with information to be added to a hypergraph.
 ///
 /// `Edge` variant now has `source` and `target`.
@@ -768,10 +798,100 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     }
 }
 
+// mod iter {
+//     use crate::Hypergraph;
+
+//     /// Iterator over the ids of a hypergraph.
+//     ///
+//     /// Iterator element type is `Vec<usize>`.
+//     ///
+//     /// Created with [`.ids()`][1].
+//     ///
+//     /// [1]: struct.G\Hypergraph.html#method.ids
+//     #[derive(Debug)]
+//     pub struct IdIter<'a, N, E, H, L, Ty> {
+//         /// Original hypergraph (main or sub)
+//         original: &'a Hypergraph<N, E, H, L, Ty>,
+//         /// Id of original
+//         original_id: Vec<usize>,
+//         /// Local subhypergraph for ease of access
+//         local_subhypergraph: Option<&'a Hypergraph<N, E, H, L, Sub>>,
+//         /// Id of local_subhypergraph
+//         local_hypergraph_id: Vec<usize>,
+//         /// Current type of element to cycle
+//         current_element_type: ElementType,
+//         /// Next local_id: None means there are no more elements in original
+//         next_local_id: Option<usize>,
+//     }
+
+//     impl<'a, N, E, H, L, Ty> Iterator for IdIter<&'a Hypergraph<N, E, H, L, Ty>> {
+//         type Item = Vec<usize>;
+//         fn next(&mut self) -> Option<<Self::Item> {
+//             match self.next_local_id {
+//                  Some(local_id) => {
+//                     // Wrap up the return value
+//                     let mut result = self.original_id.clone();
+//                     result.extend(&local_subhypergraph_id);
+//                     result.push(local_id);
+//                     // Search for next element
+//                     let hypergraph = self.original.hypergraph(local_hypergraph_id);
+
+//                     if let Some(h) = self.local_subhypergraph {
+//                         match self.current_element_type {
+//                             ElementType::Edge => {
+//                                 let local_index = h.edges.get_index_of(local_id);
+//                                 match h.edges.get_index(local_index + 1) {
+//                                     Some((next_local_id, _)) => {
+//                                         self.next_local_id = next_local_id;
+//                                     }
+//                                     None => {
+//                                         !!!!!
+//                                     }
+//                                 }
+//                                 if local_index < h.edge_count() - 1 {
+//                                     self.next_local_id = Some(lo)
+//                                 }
+
+//                             }
+//                             _ => todo!(),
+//                         }
+//                     } else {
+//                         self.original.element_value()
+//                     }
+
+//                     return result
+//                  }
+//                  None => return None,
+//              }
+//             let next = self.next.clone();
+//             let local_id =
+//             self.next =
+//             next
+//         }
+//     }
+
+//     /// A “walker” object that can be used to step through a hypergraph without borrowing it.
+//     ///
+//     /// Created with [`.detach()`](struct.IdIter.html#method.detach).
+//     #[derive(Debug)]
+//     pub struct IdWalker {
+//         skip_start: Vec<usize>,
+//         next: Vec<usize>,
+//     }
+// }
+
 /// # Get
 ///
 /// Access node and edge weights (associated data).
 impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
+    // pub fn next_id(&self, id: impl AsRef<[usize]>) -> Option<Vec<usize>> {
+    //     self.element_type(id);
+    // }
+
+    // pub fn ids<'a>(&'a self) -> IdIter<'a, Self> {
+    //     todo!()
+    // }
+
     /// Returns the class marker.
     pub fn class(&self) -> &Ty {
         &self.class
@@ -914,6 +1034,11 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
                 }
             }
         }
+    }
+
+    pub fn element_type(&self, id: impl AsRef<[usize]>) -> Option<ElementType> {
+        self.element_value(id)
+            .map(|element| -> ElementType { element.into() })
     }
 
     pub fn element_value(
@@ -1134,9 +1259,16 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
             subhypergraph
         }
     }
+
+    pub fn value(&self) -> &Option<H> {
+        &self.value
+    }
+    pub fn value_mut(self: &mut Self) -> &mut Option<H> {
+        &mut self.value
+    }
 }
 /// # Set
-impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
+impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     /// Change the value of the hypergraph as a whole.
     pub fn set_value(&mut self, new_value: impl Into<Option<H>>) -> &mut Self {
         self.value = new_value.into();
@@ -1165,13 +1297,6 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
 
     pub fn set_hypergraph_value(&mut self, id: impl AsRef<[usize]>, new_value: H) -> Option<H> {
         todo!()
-    }
-
-    pub fn value(&self) -> &Option<H> {
-        &self.value
-    }
-    pub fn value_mut(self: &mut Self) -> &mut Option<H> {
-        &mut self.value
     }
 }
 
