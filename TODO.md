@@ -4,7 +4,27 @@
 
 ### Removal
 
-- remove_element
+- remove
+  - edge
+    - edge
+    - links
+    - edge neighbor of 
+      - nodes
+      - hypergraphs
+  - hypergraph
+    - hypergraph
+    - links
+    - hypergraph neighbor of edges
+    - edges with insufficient links
+  - link
+    - link
+    - source & target neighbors
+    - edges with insufficient links
+  - node
+    - node
+    - links
+    - node neighbor of edges
+    - edges with insufficient links
 - remove_element_by_value
   - Need comparison
   - Use get::ids
@@ -17,7 +37,9 @@
 ### Getters
 
 - neighbors (iterator over ids)
+  - NeighborWalk
 - neighbors_mut (iterator)
+  - 
 - neighbors_directed (iterator)
 - neighbors_directed_mut (iterator)
 - Ids (iterator)
@@ -83,3 +105,7 @@ Increase your current hypergraph by other elements.
 
 - draw()
   Check out [petgraph_evcxr](https://docs.rs/petgraph-evcxr/0.2.0/src/petgraph_evcxr/lib.rs.html#23-45)
+
+# Traits
+
+Implement as much as possible of `petgraph::visit` traits

@@ -19,10 +19,33 @@
 //! [`Neo4j`]: https://neo4j.com/
 //! [`CMapTool`]: https://cmap.ihmc.us/
 //! [`hypergraph`]: https://crates.io/crates/hypergraph
+//!
+//! ## Similar datastructures
+//!
+//! ### Petgraph
+//!
+//! A `petgraph::Graph<NodeEnum, L, Directed, usize>`, where `NodeEnum` is an enum with three variants: `Node<N>`, `Edge<E>` and `Hypergraph<H>`
+//! is very similar to `Hypergraph<N, E, H, L>`: Edges can connect to multiple nodes and hypergraphs.
+//! But there are some differences too:
+//! - `Hypergraph` allows multiedges
+//! - `Hypergraph` allows links from nodes of one `Hypergraph` to another.
+//! - `Hypergraph` does not allow links between nodes and hypergraphs, there must be an edge in between.
 
-mod hyper_graph;
+mod direction;
+/// Elements of a hypergraph, in all variants.
+pub mod elements;
+/// All errors in this crate.
+pub mod errors;
+mod hypergraph;
+/// Iterators for a hypergraph.
+pub mod iterators;
+/// All traits in this crate.
+pub mod traits;
+/// Walkers for a hypergraph.
+pub mod walkers;
 
-pub use hyper_graph::Hypergraph;
+pub use direction::Direction;
+pub use hypergraph::*;
 
 #[cfg(test)]
 mod tests {
