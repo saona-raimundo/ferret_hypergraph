@@ -4,6 +4,36 @@ use serde::{Deserialize, Serialize};
 use crate::errors::LinkPresent;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ElementValue<N, E, H, L> {
+    /// A graph edge.
+    Edge { value: E },
+    /// A hypergraph.
+    Hypergraph { value: Option<H> },
+    /// A graph link.
+    Link { value: Option<L> },
+    /// A graph node.
+    Node { value: N },
+}
+
+impl<N, E, H, L> ElementValue<N, E, H, L> {
+    pub fn is_edge(&self) -> bool {
+        matches!(self, ElementValue::Edge { .. })
+    }
+
+    pub fn is_hypergraph(&self) -> bool {
+        matches!(self, ElementValue::Hypergraph { .. })
+    }
+
+    pub fn is_link(&self) -> bool {
+        matches!(self, ElementValue::Link { .. })
+    }
+
+    pub fn is_node(&self) -> bool {
+        matches!(self, ElementValue::Node { .. })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElementLinkable<N, E, H> {
     /// A graph edge.
     Edge { value: E },
@@ -118,6 +148,17 @@ impl ElementType {
             ElementType::Hypergraph => ElementType::Link,
             ElementType::Link => ElementType::Node,
             ElementType::Node => ElementType::Edge,
+        }
+    }
+}
+
+impl<N, E, H, L> From<ElementValue<N, E, H, L>> for ElementType {
+    fn from(element_value: ElementValue<N, E, H, L>) -> Self {
+        match element_value {
+            ElementValue::Edge { .. } => ElementType::Edge,
+            ElementValue::Link { .. } => ElementType::Link,
+            ElementValue::Hypergraph { .. } => ElementType::Hypergraph,
+            ElementValue::Node { .. } => ElementType::Node,
         }
     }
 }

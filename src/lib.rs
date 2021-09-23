@@ -9,6 +9,7 @@
 //! - Thread safe: Implements `Send` and `Sync`.
 //! - Node and edges are important: Both are first class citizen.
 //! - File support: Any element may have attached files or urls.
+//! - No hashing needed: Types are totally arbitrary.
 //!
 //! # Inspirations
 //!

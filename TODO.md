@@ -1,19 +1,14 @@
 # TODO
 
+Get
+
+​	*_value_mut
+
+Set
+
+​	set\_*\_value
+
 ## Hypergraph
-
-### Add 
-
-- Test coherent links/ edge adds.
-  Restrict links to live in a **coherent** hypergraph with respect to source and target:
-  - same hypergraph
-  - nested
-    - source; or
-    - target; or
-    - higher
-  - nonintersecting
-    - first in common; or
-    - higher
 
 ### Removal
 
