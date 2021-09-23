@@ -1,8 +1,9 @@
 use crate::Hypergraph;
+
 /// A “walker” object that can be used to step through a hypergraph without borrowing it.
 ///
 /// Created with [`.detach()`](struct.IdIter.html#method.detach).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct IdWalk {
     next_id: Option<Vec<usize>>,
 }

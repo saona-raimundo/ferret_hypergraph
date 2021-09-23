@@ -250,10 +250,19 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
     ///
     /// If any `id` provided (`location` or within `element`) does not correspond to an element of the hypergraph,
     /// or if `element` is a connection (edge or link) and `source` or `target` can not be connected through `elmenet`.
+    ///
+    /// Also, if element is an edge or a link, `location` must be coherent with the pair `(source, target)`.
+    /// This prevents to have links in locations unrelated to `source` or `target`.
+    /// To be coherent means satisfying one of the following rules:
+    ///  - `source` and `target` are in the same hypergraph with `id` `location`.
+    ///  - `source` and `target` are in hypergraphs which are nested,
+    /// and `location` refers to to either one of these hypergraphs or another hypergraph that contains both of them.
+    ///  -  `source` and `target` are in nonintersecting hypergraphs,
+    /// and `location` refers to a hypergraph that contains both of them.
     //
     // # Note
     //
-    // Perform all checks and call the panicking variant.
+    // This method performs all checks and call the unchecked variant.
     pub fn add_element(
         &mut self,
         element: ElementExt<N, E, H, L, Vec<usize>>,
@@ -268,7 +277,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         }
         // Never fails since element is now either edge or link
         let global_source_id = element.source().unwrap();
-        let source_option_element = self.element_value(global_source_id);
+        let source_option_element = self.element_value(&global_source_id);
         // Check of source and target
         let source_element = match source_option_element {
             None => return Err(AddError::NoSource(element.into_source().unwrap())),
@@ -288,7 +297,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         // source_element is either node or hypergrpha. or edge only if element is a link
         // Never fails since element is now either edge or link
         let global_target_id = element.target().unwrap();
-        let target_option_element = self.element_value(global_target_id);
+        let target_option_element = self.element_value(&global_target_id);
         match self.element_value(global_target_id) {
             None => return Err(AddError::NoTarget(element.into_target().unwrap())),
             Some(target_element) => match target_element {
@@ -320,6 +329,43 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
                 return Err(AddError::Unlinkable(source, target)); // (node or h) -> (node or h) can not be
             }
         }
+        // Check coherence of location with respect to source and target
+        let source_hypergraph_id = &global_source_id[0..global_source_id.len() - 1];
+        let target_hypergraph_id = &global_target_id[0..global_target_id.len() - 1];
+        fn contains_or_equals(one: &[usize], other: &[usize]) -> bool {
+            if one.len() <= other.len() {
+                one == &other[0..one.len()]
+            } else {
+                false
+            }
+        }
+        fn are_strictly_nested(one: &[usize], other: &[usize]) -> bool {
+            if one.len() < other.len() {
+                one == &other[0..one.len()]
+            } else {
+                &one[0..other.len()] == other
+            }
+        }
+        // let location = location.to_vec();
+        let coherent_rule_same_hypergraph =
+            (source_hypergraph_id == target_hypergraph_id) && (source_hypergraph_id == location);
+        let coherent_rule_nested = are_strictly_nested(source_hypergraph_id, target_hypergraph_id)
+            && ((location == source_hypergraph_id)
+                || (location == target_hypergraph_id)
+                || (contains_or_equals(location, source_hypergraph_id)
+                    && contains_or_equals(location, target_hypergraph_id)));
+        let coherent_rule_nonintersecting = contains_or_equals(location, source_hypergraph_id)
+            && contains_or_equals(location, target_hypergraph_id);
+
+        if !(coherent_rule_same_hypergraph || coherent_rule_nested || coherent_rule_nonintersecting)
+        {
+            return Err(AddError::IncoherentLink(
+                location.to_vec(),
+                global_source_id.clone(),
+                global_target_id.clone(),
+            ));
+        }
+
         // Now the connection is valid
         Ok(self.add_element_unchecked(element, location))
     }
@@ -896,78 +942,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         direction: Direction,
     ) -> Result<NeighborIter<N, E, H, L, Ty>, NoElementLinkable> {
         NeighborIter::new(self, id, direction)
-        // let id = id.as_ref();
-        // if id.is_empty() {
-        //     return None;
-        // }
-        // let local_id = id.last().unwrap(); // Never fails since id is not empty.
-        // let hypergraph = match self.hypergraph(&id[0..id.len() - 1]) {
-        //     Some(h) => h,
-        //     None => return None,
-        // };
-
-        // if let Some(edge_full) = hypergraph.raw_edges().get(local_id) {
-        //     let (_, ref neighbors) = edge_full;
-        //     return Some(neighbors);
-        // } else if let Some(hypergraph_full) = hypergraph.raw_hypergraphs().get(local_id) {
-        //     let (_, ref neighbors) = hypergraph_full;
-        //     return Some(neighbors);
-        // } else if let Some(node_full) = hypergraph.raw_nodes().get(local_id) {
-        //     let (_, ref neighbors) = node_full;
-        //     return Some(neighbors);
-        // } else {
-        //     return None;
-        // }
     }
-
-    // /// Returns `None` if `id` is empty.
-    // pub fn neighbors_mut(
-    //     &mut self,
-    //     id: impl AsRef<[usize]>,
-    // ) -> Option<&mut Vec<(Vec<usize>, Direction)>> {
-    //     let id = id.as_ref();
-
-    //     match id.len() {
-    //         0 => None,
-    //         1 => {
-    //             let hypergraph = self;
-    //             let local_id = id.last().unwrap(); // Never fails since it is not empty
-    //             if let Some(edge_full) = hypergraph.edges.get_mut(local_id) {
-    //                 let (_, ref mut neighbors) = edge_full;
-    //                 return Some(neighbors);
-    //             } else if let Some(hypergraph_full) = hypergraph.hypergraphs.get_mut(local_id) {
-    //                 let (_, ref mut neighbors) = hypergraph_full;
-    //                 return Some(neighbors);
-    //             } else if let Some(node_full) = hypergraph.nodes.get_mut(local_id) {
-    //                 let (_, ref mut neighbors) = node_full;
-    //                 return Some(neighbors);
-    //             } else {
-    //                 return None;
-    //             }
-    //         }
-    //         _ => {
-    //             let hypergraph = match self.subhypergraph_mut(&id[0..id.len() - 1]) {
-    //                 Some(h) => h,
-    //                 None => {
-    //                     return None;
-    //                 }
-    //             };
-    //             let local_id = id.last().unwrap(); // Never fails since it is not empty
-    //             if let Some(edge_full) = hypergraph.edges.get_mut(local_id) {
-    //                 let (_, ref mut neighbors) = edge_full;
-    //                 return Some(neighbors);
-    //             } else if let Some(hypergraph_full) = hypergraph.hypergraphs.get_mut(local_id) {
-    //                 let (_, ref mut neighbors) = hypergraph_full;
-    //                 return Some(neighbors);
-    //             } else if let Some(node_full) = hypergraph.nodes.get_mut(local_id) {
-    //                 let (_, ref mut neighbors) = node_full;
-    //                 return Some(neighbors);
-    //             } else {
-    //                 return None;
-    //             }
-    //         }
-    //     }
-    // }
 
     pub fn element_type(&self, id: impl AsRef<[usize]>) -> Option<ElementType> {
         self.element_value(id)

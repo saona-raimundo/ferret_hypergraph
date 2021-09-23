@@ -24,6 +24,8 @@ pub enum AddError {
     NoTarget(Vec<usize>),
     #[error("Failed to add link because the desired target is a link too (location {0:?}).")]
     LinkTarget(Vec<usize>),
-    #[error("Failed to add link because the desired pair (source, target) can not be linked (source {0:?}, target {0:?}).")]
+    #[error("Failed to add link because the desired pair (source, target) can not be linked (source {0:?}, target {1:?}).")]
     Unlinkable(Vec<usize>, Vec<usize>),
+    #[error("Failed to add link because the location is incoherent with desired pair (source, target) (location {0:?}, source {1:?}, target {2:?}).")]
+    IncoherentLink(Vec<usize>, Vec<usize>, Vec<usize>),
 }

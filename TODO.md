@@ -2,7 +2,29 @@
 
 ## Hypergraph
 
+### Add 
+
+- Test coherent links/ edge adds.
+  Restrict links to live in a **coherent** hypergraph with respect to source and target:
+  - same hypergraph
+  - nested
+    - source; or
+    - target; or
+    - higher
+  - nonintersecting
+    - first in common; or
+    - higher
+
 ### Removal
+
+Recall all the invariants
+
+- Edges need at least two vertices
+- Edges include links (that might be in other hypergraphs)
+- Links need source and target
+- Hypergraph includes its content
+
+Methods
 
 - remove
   - edge
@@ -27,12 +49,7 @@
     - edges with insufficient links
 - remove_element_by_value
   - Need comparison
-  - Use get::ids
-- Recall all the invariants
-  - Edges need at least two vertices
-  - Edges include links (that might be in other hypergraphs)
-  - Links need source and target
-  - Hypergraph includes its content
+    - Use get::ids
 
 ### Getters
 
