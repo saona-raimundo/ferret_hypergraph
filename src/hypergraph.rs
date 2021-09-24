@@ -1,4 +1,4 @@
-use core::fmt::Debug;
+use core::{fmt::Debug, mem};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +67,7 @@ pub struct Hypergraph<N, E, H = (), L = (), Ty = Main> {
     /// nodes: their weight and links (in absolute format)
     nodes: IndexMap<usize, (N, Vec<(Vec<usize>, Direction)>)>,
     /// edges: weight and links (in absolute format)
-    edges: IndexMap<usize, (E, Vec<(Vec<usize>, Direction)>)>, // This vector alsways has at least two elements
+    edges: IndexMap<usize, (E, Vec<(Vec<usize>, Direction)>)>, // This vector always has at least two elements
     /// links: weight, source and target ids (in absolute format)
     links: IndexMap<usize, (Option<L>, Vec<usize>, Vec<usize>)>, // Links have no neighbors
     /// subhypergraps: subhypergraph and links
@@ -931,55 +931,42 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     pub fn edge_value(&self, id: impl AsRef<[usize]>) -> Option<&E> {
-        let id = id.as_ref();
-        let local_id = match id.last() {
-            Some(local_id) => local_id,
-            None => return None,
-        };
-        if id.len() == 1 {
-            return self.edges.get(local_id).map(|edge_full| &edge_full.0);
+        if let Some(h) = self.hypergraph_of(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_edges().get(local_id).map(|edge_full| &edge_full.0)
+            } else {
+                None
+            }
         } else {
-            if let Some(h) = self.subhypergraph(&id[0..id.len() - 1]) {
-                return h.edge_value(&[*local_id]);
-            };
+            None
         }
-        None
     }
 
     /// Returns the pair of gloalbal `id`s `(source, target)` if the link exists.
     pub fn link_endpoints(&self, id: impl AsRef<[usize]>) -> Option<(&Vec<usize>, &Vec<usize>)> {
-        let id = id.as_ref();
-        let local_id = match id.last() {
-            Some(local_id) => local_id,
-            None => return None,
-        };
-        if id.len() == 1 {
-            return self
-                .links
-                .get(local_id)
-                .map(|link_full| (&link_full.1, &link_full.2));
+        if let Some(h) = self.hypergraph_of(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_links()
+                    .get(local_id)
+                    .map(|link_full| (&link_full.1, &link_full.2))
+            } else {
+                None
+            }
         } else {
-            if let Some(h) = self.subhypergraph(&id[0..id.len() - 1]) {
-                return h.link_endpoints(&[*local_id]);
-            };
+            None
         }
-        None
     }
 
     pub fn link_value(&self, id: impl AsRef<[usize]>) -> Option<&Option<L>> {
-        let id = id.as_ref();
-        let local_id = match id.last() {
-            Some(local_id) => local_id,
-            None => return None,
-        };
-        if id.len() == 1 {
-            return self.links.get(local_id).map(|link_full| &link_full.0);
+        if let Some(h) = self.hypergraph_of(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_links().get(local_id).map(|link_full| &link_full.0)
+            } else {
+                None
+            }
         } else {
-            if let Some(h) = self.subhypergraph(&id[0..id.len() - 1]) {
-                return h.link_value(&[*local_id]);
-            };
+            None
         }
-        None
     }
 
     /// Returns the subgraph with id `id`, if it exists.
@@ -998,38 +985,31 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     pub fn hypergraph_value(&self, id: impl AsRef<[usize]>) -> Option<&Option<H>> {
-        let id = id.as_ref();
-        let local_id = match id.last() {
-            Some(local_id) => local_id,
-            None => return Some(&self.value),
-        };
-        if id.len() == 1 {
-            return self
-                .hypergraphs
-                .get(local_id)
-                .map(|hypergraph_full| &hypergraph_full.0.value);
+        if id.as_ref().is_empty() {
+            Some(self.value())
+        } else if let Some(h) = self.hypergraph_of(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_hypergraphs()
+                    .get(local_id)
+                    .map(|hypergraph_full| &hypergraph_full.0.value)
+            } else {
+                None
+            }
         } else {
-            if let Some(h) = self.subhypergraph(&id[0..id.len() - 1]) {
-                return h.hypergraph_value(&[*local_id]);
-            };
+            None
         }
-        None
     }
 
     pub fn node_value(&self, id: impl AsRef<[usize]>) -> Option<&N> {
-        let id = id.as_ref();
-        let local_id = match id.last() {
-            Some(local_id) => local_id,
-            None => return None,
-        };
-        if id.len() == 1 {
-            return self.nodes.get(local_id).map(|node_full| &node_full.0);
+        if let Some(h) = self.hypergraph_of(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_nodes().get(local_id).map(|node_full| &node_full.0)
+            } else {
+                None
+            }
         } else {
-            if let Some(h) = self.subhypergraph(&id[0..id.len() - 1]) {
-                return h.node_value(&[*local_id]);
-            };
+            None
         }
-        None
     }
 
     pub fn element_value_mut(
@@ -1124,19 +1104,61 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     pub fn edge_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut E> {
-        todo!()
+        if let Some(h) = self.hypergraph_of_mut(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_edges_mut()
+                    .get_mut(local_id)
+                    .map(|edge_full| &mut edge_full.0)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
-    pub fn link_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut L> {
-        todo!()
+    pub fn link_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut Option<L>> {
+        if let Some(h) = self.hypergraph_of_mut(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_links_mut()
+                    .get_mut(local_id)
+                    .map(|link_full| &mut link_full.0)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
-    pub fn hypergraph_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut H> {
-        todo!()
+    pub fn hypergraph_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut Option<H>> {
+        if id.as_ref().is_empty() {
+            Some(self.value_mut())
+        } else if let Some(h) = self.hypergraph_of_mut(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_hypergraphs_mut()
+                    .get_mut(local_id)
+                    .map(|hypergraph_full| &mut hypergraph_full.0.value)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     pub fn node_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut N> {
-        todo!()
+        if let Some(h) = self.hypergraph_of_mut(&id) {
+            if let Some(local_id) = id.as_ref().last() {
+                h.raw_nodes_mut()
+                    .get_mut(local_id)
+                    .map(|node_full| &mut node_full.0)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     /// Returns the subgraph with id `id`, if it exists.
@@ -1188,12 +1210,12 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     pub fn set_element_value(
         &mut self,
         id: impl AsRef<[usize]>,
-        new_value: N,
+        new_value: ElementValue<N, E, H, L>,
     ) -> Option<ElementValue<N, E, H, L>> {
         todo!()
     }
 
-    pub fn set_node_value(&mut self, id: impl AsRef<[usize]>, new_value: N) -> Option<N> {
+    pub fn set_node_value(&mut self, id: impl AsRef<[usize]>, mut new_value: N) -> Option<N> {
         todo!()
     }
 
@@ -1652,6 +1674,15 @@ mod tests {
     }
 
     #[test]
+    fn edge_value() {
+        let mut h = Hypergraph::<_, _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(h.edge_value([2]).unwrap(), &"two");
+    }
+
+    #[test]
     fn element_value() {
         let mut h = Hypergraph::new();
         h.add_node("zero", []).unwrap();
@@ -1708,6 +1739,17 @@ mod tests {
     }
 
     #[test]
+    fn hypergraph_value() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(h.hypergraph_value([6]).unwrap(), &Some("six"));
+    }
+
+    #[test]
     fn ids() {
         let mut h = Hypergraph::new();
         h.add_node("zero", []).unwrap();
@@ -1751,6 +1793,18 @@ mod tests {
                 (vec![4], Direction::Outgoing)
             ]
         );
+    }
+
+    #[test]
+    fn link_value() {
+        let mut h = Hypergraph::<_, _, (), _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        assert_eq!(h.link_value([3]).unwrap(), &None);
+        assert_eq!(h.link_value([4]).unwrap(), &None);
+        assert_eq!(h.link_value([5]).unwrap(), &Some("three"));
     }
 
     #[test]
@@ -1801,5 +1855,14 @@ mod tests {
     #[test]
     fn new() {
         Hypergraph::<(), ()>::new();
+    }
+
+    #[test]
+    fn node_value() {
+        let mut h = Hypergraph::<_, ()>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        assert_eq!(h.node_value([0]).unwrap(), &"zero");
+        assert_eq!(h.node_value([1]).unwrap(), &"one");
     }
 }
