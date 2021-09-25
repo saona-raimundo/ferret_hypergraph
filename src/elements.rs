@@ -133,7 +133,7 @@ impl<N, E, H, L, Id> From<ElementLinkable<N, E, H>> for Element<N, E, H, L, Id> 
 
 // impl TryInto<ElementExt> for Element ...
 
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElementType {
     Edge,
     Hypergraph,

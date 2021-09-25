@@ -38,7 +38,7 @@ pub use classes::{Main, Sub};
 /// - `H`: hypergraph
 /// - `L`: link (simple edge)
 /// - `N`: node
-/// - `Ty`: Main or sub hypergrpah marker
+/// - `Ty`: Main or sub hypergraph marker
 ///
 /// # Indices
 ///
@@ -165,7 +165,7 @@ impl<'a, N, E, H, L, Ty>
         }
     }
     /// Add a neighbor to the local element with id `local_id`.
-    /// the neighbour corresponds to `(link_id, Direction)`.
+    /// the neighbor corresponds to `(link_id, Direction)`.
     ///
     /// # Contract
     ///
@@ -732,7 +732,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
 
     /// Returns the hypergraph in which `id` lives, if it exists.
     ///
-    /// `None` is returned when there is no element with id `id`.
+    /// `None` is returned when: there is no element with id `id`; or `id` is empty.
     pub fn hypergraph_of(
         &self,
         id: impl AsRef<[usize]>,
@@ -868,7 +868,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         Some(links)
     }
 
-    /// Returns an iterator over outgoing neighbours.
+    /// Returns an iterator over outgoing neighbors.
     pub fn neighbors(
         &self,
         id: impl AsRef<[usize]>,
@@ -1212,23 +1212,110 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         id: impl AsRef<[usize]>,
         new_value: ElementValue<N, E, H, L>,
     ) -> Option<ElementValue<N, E, H, L>> {
-        todo!()
+        match new_value {
+            ElementValue::Edge { value } => {
+                let old_value = match self.set_edge_value(id, value) {
+                    None => return None,
+                    Some(v) => v,
+                };
+                Some(ElementValue::Edge { value: old_value })
+            }
+            ElementValue::Hypergraph { value } => {
+                let old_value = match self.set_hypergraph_value(id, value) {
+                    None => return None,
+                    Some(v) => v,
+                };
+                Some(ElementValue::Hypergraph { value: old_value })
+            }
+            ElementValue::Link { value } => {
+                let old_value = match self.set_link_value(id, value) {
+                    None => return None,
+                    Some(v) => v,
+                };
+                Some(ElementValue::Link { value: old_value })
+            }
+            ElementValue::Node { value } => {
+                let old_value = match self.set_node_value(id, value) {
+                    None => return None,
+                    Some(v) => v,
+                };
+                Some(ElementValue::Node { value: old_value })
+            }
+        }
+    }
+
+    pub fn set_edge_value(&mut self, id: impl AsRef<[usize]>, mut new_value: E) -> Option<E> {
+        let id = id.as_ref();
+        let hypergraph = match self.hypergraph_of_mut(&id) {
+            None => return None,
+            Some(h) => h,
+        };
+        let local_id = id.last().unwrap(); // Never fails since id is not empty
+
+        let raw_edges = hypergraph.raw_edges_mut();
+        match raw_edges.get_mut(local_id) {
+            Some((old_value, _links)) => mem::swap(old_value, &mut new_value),
+            None => return None,
+        }
+        Some(new_value)
+    }
+
+    pub fn set_link_value(
+        &mut self,
+        id: impl AsRef<[usize]>,
+        new_value: impl Into<Option<L>>,
+    ) -> Option<Option<L>> {
+        let id = id.as_ref();
+        let mut new_value = new_value.into();
+        let hypergraph = match self.hypergraph_of_mut(&id) {
+            None => return None,
+            Some(h) => h,
+        };
+        let local_id = id.last().unwrap(); // Never fails since id is not empty
+
+        let raw_links = hypergraph.raw_links_mut();
+        match raw_links.get_mut(local_id) {
+            Some((old_value, _, _)) => mem::swap(old_value, &mut new_value),
+            None => return None,
+        }
+        Some(new_value)
+    }
+
+    pub fn set_hypergraph_value(
+        &mut self,
+        id: impl AsRef<[usize]>,
+        new_value: impl Into<Option<H>>,
+    ) -> Option<Option<H>> {
+        let id = id.as_ref();
+        let mut new_value = new_value.into();
+        let hypergraph = match self.hypergraph_of_mut(&id) {
+            None => return None,
+            Some(h) => h,
+        };
+        let local_id = id.last().unwrap(); // Never fails since id is not empty
+
+        let raw_hypergraphs = hypergraph.raw_hypergraphs_mut();
+        match raw_hypergraphs.get_mut(local_id) {
+            Some((h, _links)) => mem::swap(&mut h.value, &mut new_value),
+            None => return None,
+        }
+        Some(new_value)
     }
 
     pub fn set_node_value(&mut self, id: impl AsRef<[usize]>, mut new_value: N) -> Option<N> {
-        todo!()
-    }
+        let id = id.as_ref();
+        let hypergraph = match self.hypergraph_of_mut(&id) {
+            None => return None,
+            Some(h) => h,
+        };
+        let local_id = id.last().unwrap(); // Never fails since id is not empty
 
-    pub fn set_edge_value(&mut self, id: impl AsRef<[usize]>, new_value: E) -> Option<E> {
-        todo!()
-    }
-
-    pub fn set_link_value(&mut self, id: impl AsRef<[usize]>, new_value: L) -> Option<L> {
-        todo!()
-    }
-
-    pub fn set_hypergraph_value(&mut self, id: impl AsRef<[usize]>, new_value: H) -> Option<H> {
-        todo!()
+        let raw_nodes = hypergraph.raw_nodes_mut();
+        match raw_nodes.get_mut(local_id) {
+            Some((old_value, _links)) => mem::swap(old_value, &mut new_value),
+            None => return None,
+        }
+        Some(new_value)
     }
 }
 
@@ -1404,7 +1491,7 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
 ///
 /// Find elements.
 impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    /// Returns the id of the link that belongs to hypergrpah `location` linking `source` and `target`.
+    /// Returns the id of the link that belongs to hypergraph `location` linking `source` and `target`.
     ///
     /// An empty `location` means the main hypergraph.
     ///
@@ -1864,5 +1951,53 @@ mod tests {
         h.add_node("one", []).unwrap();
         assert_eq!(h.node_value([0]).unwrap(), &"zero");
         assert_eq!(h.node_value([1]).unwrap(), &"one");
+    }
+
+    #[test]
+    fn set_edge_value() {
+        let mut h = Hypergraph::<_, _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(h.edge_value([2]), Some(&"two"));
+        assert_eq!(h.set_edge_value([2], "new_two"), Some("two"));
+        assert_eq!(h.edge_value([2]), Some(&"new_two"));
+        assert_eq!(h.neighbors([2]).unwrap().next(), Some(&vec![1]));
+    }
+
+    #[test]
+    fn set_hypergraph_value() {
+        let mut h = Hypergraph::<_, _, _>::new();
+        h.add_hypergraph("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(h.hypergraph_value([0]), Some(&Some("zero")));
+        assert_eq!(h.set_hypergraph_value([0], "new_zero"), Some(Some("zero")));
+        assert_eq!(h.hypergraph_value([0]), Some(&Some("new_zero")));
+        assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
+    }
+
+    #[test]
+    fn set_link_value() {
+        let mut h = Hypergraph::<_, _, (), _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(h.link_value([3]), Some(&None));
+        assert_eq!(h.set_link_value([3], "new_three"), Some(None));
+        assert_eq!(h.link_value([3]), Some(&Some("new_three")));
+    }
+
+    #[test]
+    fn set_node_value() {
+        let mut h = Hypergraph::<_, _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(h.node_value([0]), Some(&"zero"));
+        assert_eq!(h.set_node_value([0], "new_zero"), Some("zero"));
+        assert_eq!(h.node_value([0]), Some(&"new_zero"));
+        assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
+        assert_eq!(h.node_value([1]), Some(&"one"));
     }
 }

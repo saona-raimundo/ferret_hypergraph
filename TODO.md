@@ -1,13 +1,5 @@
 # TODO
 
-Set
-
-- set\_*\_value
-  - Add the element value to the respective IndexMap
-  - swap all links
-  - Apply swap_remove to the IndexMap
-  - Return the value
-
 ## Hypergraph
 
 ### Removal
