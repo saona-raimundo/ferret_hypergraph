@@ -14,26 +14,8 @@ Recall all the invariants
 Methods
 
 - remove
-  - edge
-    - edge
-    - links
-    - edge neighbor of 
-      - nodes
-      - hypergraphs
-  - hypergraph
-    - hypergraph
-    - links
-    - hypergraph neighbor of edges
-    - edges with insufficient links
-  - link
-    - link
-    - source & target neighbors
-    - edges with insufficient links
-  - node
-    - node
-    - links
-    - node neighbor of edges
-    - edges with insufficient links
+  - Make these functions fallible!
+  - Repair clear functions to correctly remove items before clearing
 - remove_element_by_value
   - Need comparison
     - Use get::ids

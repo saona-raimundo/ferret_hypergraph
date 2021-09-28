@@ -54,6 +54,7 @@ pub use classes::{Main, Sub};
 /// - [`Get`](#get)
 /// - [`Inform`](#inform)
 /// - [`Optimization`](#optimization)
+/// - [`Remove`](#remove)
 /// - [`Set`](#set)
 //
 // # Note
@@ -1564,30 +1565,171 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     pub fn remove_edge(&mut self, id: impl AsRef<[usize]>) -> Option<E> {
-        let mut id = id.as_ref().to_vec();
+        let id = id.as_ref();
         match id.len() {
             0 => None,
             _ => {
-                let local_id = id.pop().unwrap(); // Never fails since id is not empty
-                let mut hypergraph = match self.hypergraph_mut(id) {
+                let local_id = id.last().unwrap(); // Never fails since id is not empty
+                let hypergraph = match self.hypergraph_of_mut(id) {
                     None => return None,
                     Some(h) => h,
                 };
-                todo!()
+                let raw_edges = hypergraph.raw_edges_mut();
+                let (edge_value, edge_links) = match raw_edges.remove(local_id) {
+                    None => return None,
+                    Some(edge_full) => edge_full,
+                };
+                for (link_id, _) in edge_links {
+                    self.remove_link(link_id);
+                }
+                Some(edge_value)
             }
         }
     }
 
     pub fn remove_hypergraph(&mut self, id: impl AsRef<[usize]>) -> Option<Option<H>> {
-        todo!()
+        let id = id.as_ref();
+        match id.len() {
+            0 => None,
+            _ => {
+                let local_id = id.last().unwrap(); // Never fails since id is not empty
+                let hypergraph = match self.hypergraph_of_mut(id) {
+                    None => return None,
+                    Some(h) => h,
+                };
+                let raw_hypergraphs = hypergraph.raw_hypergraphs_mut();
+                let (subhypergraph, subhypergraph_links) = match raw_hypergraphs.remove(local_id) {
+                    None => return None,
+                    Some(hypergraph_full) => hypergraph_full,
+                };
+                for (link_id, _) in subhypergraph_links {
+                    self.remove_link(link_id);
+                }
+                let id = id.to_vec();
+                for local_id in subhypergraph.ids() {
+                    let mut gloabl_id = id.clone();
+                    gloabl_id.extend(local_id);
+                    self.remove(gloabl_id);
+                }
+                Some(subhypergraph.value)
+            }
+        }
     }
 
     pub fn remove_link(&mut self, id: impl AsRef<[usize]>) -> Option<Option<L>> {
-        todo!()
+        let id = id.as_ref();
+        match id.len() {
+            0 => None,
+            _ => {
+                let local_id = id.last().unwrap(); // Never fails since id is not empty
+                let hypergraph = match self.hypergraph_of_mut(&id) {
+                    None => return None,
+                    Some(h) => h,
+                };
+                let raw_links = hypergraph.raw_links_mut();
+                let (link_value, source_id, target_id) = match raw_links.remove(local_id) {
+                    None => return None,
+                    Some(link_full) => link_full,
+                };
+                self.remove_link_from(&id, source_id);
+                self.remove_link_from(&id, target_id);
+                Some(link_value)
+            }
+        }
+    }
+
+    /// Removes the link with id `link_id` from the list of links of the element `id`.  
+    ///
+    ///
+    fn remove_link_from(&mut self, link_id: impl AsRef<[usize]>, id: impl AsRef<[usize]>) -> bool {
+        let id = id.as_ref();
+        let link_id = link_id.as_ref();
+        match id.len() {
+            0 => false,
+            _ => {
+                let local_id = id.last().unwrap(); // Never fails since id is not empty
+                let element_type = match self.element_type(id) {
+                    None => return false,
+                    Some(e) => e,
+                };
+                let hypergraph = self.hypergraph_of_mut(&id).unwrap(); // Never fails since id refers to an element
+                match element_type {
+                    ElementType::Edge => {
+                        let raw_edges = hypergraph.raw_edges_mut();
+                        let (_, edge_links) = match raw_edges.get_mut(local_id) {
+                            None => return false,
+                            Some(edge_full) => edge_full,
+                        };
+                        let link_index =
+                            match edge_links.iter().position(|(l_id, _)| link_id == l_id) {
+                                None => return false, // failure
+                                Some(i) => i,
+                            };
+                        edge_links.remove(link_index);
+                        if edge_links.len() < 2 {
+                            self.remove_edge(id);
+                        }
+                        true
+                    }
+                    ElementType::Hypergraph => {
+                        let raw_hypergraphs = hypergraph.raw_hypergraphs_mut();
+                        let (_, hyperraph_links) = match raw_hypergraphs.get_mut(local_id) {
+                            None => return false,
+                            Some(h) => h,
+                        };
+                        let link_index = match hyperraph_links
+                            .iter()
+                            .position(|(link_id, _)| link_id == id)
+                        {
+                            None => return false, // failure
+                            Some(i) => i,
+                        };
+                        hyperraph_links.remove(link_index);
+                        true
+                    }
+                    ElementType::Link => {
+                        unreachable!() // Should fail
+                    }
+                    ElementType::Node => {
+                        let raw_nodes = hypergraph.raw_nodes_mut();
+                        let (_, node_links) = match raw_nodes.get_mut(local_id) {
+                            None => return false,
+                            Some(node_full) => node_full,
+                        };
+                        let link_index =
+                            match node_links.iter().position(|(l_id, _)| link_id == l_id) {
+                                None => return false, // failure
+                                Some(i) => i,
+                            };
+                        node_links.remove(link_index);
+                        true
+                    }
+                }
+            }
+        }
     }
 
     pub fn remove_node(&mut self, id: impl AsRef<[usize]>) -> Option<N> {
-        todo!()
+        let id = id.as_ref();
+        match id.len() {
+            0 => None,
+            _ => {
+                let local_id = id.last().unwrap(); // Never fails since id is not empty
+                let hypergraph = match self.hypergraph_of_mut(id) {
+                    None => return None,
+                    Some(h) => h,
+                };
+                let raw_nodes = hypergraph.raw_nodes_mut();
+                let (node_value, node_links) = match raw_nodes.remove(local_id) {
+                    None => return None,
+                    Some(node_full) => node_full,
+                };
+                for (link_id, _) in node_links {
+                    self.remove_link(link_id);
+                }
+                Some(node_value)
+            }
+        }
     }
 
     /// Removes the first element matching `value`.
@@ -1951,6 +2093,23 @@ mod tests {
         h.add_node("one", []).unwrap();
         assert_eq!(h.node_value([0]).unwrap(), &"zero");
         assert_eq!(h.node_value([1]).unwrap(), &"one");
+    }
+
+    #[test]
+    fn remove() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "five", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+
+        assert_eq!(h.remove([5]), true); // Ok(Some("five")));
+        assert_eq!(h.remove([2]), true); // Ok("two"));
+        assert_eq!(h.remove([0]), true); // Ok("zero"));
+        assert_eq!(h.remove([6]), true); // Ok(Some("six")));
+
+        assert_eq!(h.ids().collect::<Vec<_>>(), vec![vec![], vec![1]]);
     }
 
     #[test]
