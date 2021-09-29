@@ -1,5 +1,10 @@
 # TODO
 
+### Getters
+
+Fail version
+	(element_value_mut)
+
 ## Hypergraph
 
 ### Removal
@@ -19,6 +24,12 @@ Methods
 - remove_element_by_value
   - Need comparison
     - Use get::ids
+
+### Add
+
+- Rearrange errors:
+  - basic errors in errors mod
+  - enum variant in add mod (only for display proposes) with a single display
 
 ### Getters
 

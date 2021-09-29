@@ -1,4 +1,6 @@
-use crate::{errors::NoElementLinkable, walkers::NeighborWalk, Direction, Hypergraph};
+use thiserror::Error;
+
+use crate::{errors, walkers::NeighborWalk, Direction, Hypergraph};
 
 /// Iterator over the neighbors of a linkable element of a hypergraph.
 ///
@@ -53,14 +55,18 @@ impl<'a, N, E, H, L, Ty> Iterator for NeighborIter<'a, N, E, H, L, Ty> {
     }
 }
 
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
+#[error("Failed to create an iterator over neighbors because the desired source_id does not corresponds to an existing linkable element.")]
+pub struct NewError(#[from] errors::NoElementLinkable);
+
 impl<'a, N, E, H, L, Ty> NeighborIter<'a, N, E, H, L, Ty> {
     pub fn new(
         hypergraph: &'a Hypergraph<N, E, H, L, Ty>,
         source_id: impl AsRef<[usize]>,
         direction: Direction,
-    ) -> Result<Self, NoElementLinkable> {
+    ) -> Result<Self, NewError> {
         if !hypergraph.contains_linkable(&source_id) {
-            Err(NoElementLinkable(source_id.as_ref().to_vec()))
+            Err(errors::NoElementLinkable(source_id.as_ref().to_vec()))?
         } else {
             let next_link = 0;
             Ok(NeighborIter {

@@ -35,7 +35,7 @@
 mod direction;
 /// Elements of a hypergraph, in all variants.
 pub mod elements;
-/// All errors in this crate.
+/// All basic errors in this crate.
 pub mod errors;
 mod hypergraph;
 /// Iterators for a hypergraph.
