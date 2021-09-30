@@ -1,30 +1,8 @@
-use core::fmt::Debug;
-use thiserror::Error;
-
-use crate::{direction::Direction, elements::*, Hypergraph, Main};
-
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-#[error("Failed to add element.")]
-pub enum AddError {
-    // #[error("Failed to add link because the source can not be the main hypergraph.")]
-    EmptySource,
-    // #[error("Failed to add link because the source can not be the main hypergraph.")]
-    EmptyTarget,
-    // #[error("Failed to add link because the location is incoherent with desired pair (source, target) (location {0:?}, source {1:?}, target {2:?}).")]
-    IncoherentLink(Vec<usize>, Vec<usize>, Vec<usize>),
-    // #[error("Failed to add link because the desired source is a link too (source {0:?}).")]
-    LinkSource(Vec<usize>),
-    // #[error("Failed to add link because the desired target is a link too (target {0:?}).")]
-    LinkTarget(Vec<usize>),
-    // #[error("Failed to add element because the desired location does not corresponds to an existing hypergraph yet (location {0:?}).")]
-    NoHypergraph(Vec<usize>),
-    // #[error("Failed to add link because the desired source does not exist yet (source {0:?}).")]
-    NoSource(Vec<usize>),
-    // #[error("Failed to add link because the desired target does not exist yet (target {0:?}).")]
-    NoTarget(Vec<usize>),
-    // #[error("Failed to add link because the desired pair (source, target) can not be linked (source {0:?}, target {1:?}).")]
-    Unlinkable(Vec<usize>, Vec<usize>),
-}
+use crate::{
+    direction::Direction,
+    elements::{Element, ElementExt, ElementValue},
+    errors, Hypergraph, Main,
+};
 
 /// # Add
 ///
@@ -56,10 +34,10 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         &mut self,
         element: ElementExt<N, E, H, L, Vec<usize>>,
         location: impl AsRef<[usize]>,
-    ) -> Result<Vec<usize>, AddError> {
+    ) -> Result<Vec<usize>, errors::AddError> {
         let location = location.as_ref();
-        if self.hypergraph(location).is_none() {
-            return Err(AddError::NoHypergraph(location.to_vec()));
+        if !self.contains_hypergraph(location) {
+            Err(errors::NoHypergraph(location.to_vec()))?
         }
         if element.is_node() | element.is_hypergraph() {
             return Ok(self.add_element_unchecked(element, location));
@@ -67,54 +45,53 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         // Never fails since element is now either edge or link
         let global_source_id = element.source().unwrap();
         if global_source_id.is_empty() {
-            return Err(AddError::EmptySource);
+            Err(errors::EmptySource)?
         }
-        let source_option_element = self.element_value(&global_source_id);
-        // Check of source and target
-        let source_element = match source_option_element {
-            None => return Err(AddError::NoSource(element.into_source().unwrap())),
-            Some(source_element) => match source_element {
-                ElementValue::Link { .. } => {
-                    return Err(AddError::LinkSource(element.into_source().unwrap()))
+        if !self.contains_linkable(&global_source_id) {
+            return Err(errors::AddError::NoSource(errors::NoElementLinkable(
+                global_source_id.to_vec(),
+            )));
+        }
+        let source_element = self.element_value(&global_source_id).unwrap(); // Never fails since gloabl_source_id refers to a linkable element
+        let source_element = match source_element {
+            ElementValue::Link { .. } => Err(errors::LinkSource(element.into_source().unwrap()))?,
+            ElementValue::Edge { .. } => {
+                if let ElementExt::Edge { source, target, .. } = element {
+                    Err(errors::Unlinkable(source, target))?
+                    // Edge -> Edge can not be
                 }
-                ElementValue::Edge { .. } => {
-                    if let ElementExt::Edge { source, target, .. } = element {
-                        return Err(AddError::Unlinkable(source, target));
-                        // Edge -> Edge can not be
-                    }
-                    source_element
-                }
-                ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => source_element,
-            },
+                source_element
+            }
+            ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => source_element,
         };
         // source_element is either node or hypergrpha. or edge only if element is a link
         // Never fails since element is now either edge or link
         let global_target_id = element.target().unwrap();
         if global_target_id.is_empty() {
-            return Err(AddError::EmptyTarget);
+            Err(errors::EmptyTarget)?;
         }
-        let target_option_element = self.element_value(&global_target_id);
-        match self.element_value(global_target_id) {
-            None => return Err(AddError::NoTarget(element.into_target().unwrap())),
-            Some(target_element) => match target_element {
-                ElementValue::Link { .. } => {
-                    return Err(AddError::LinkTarget(element.into_target().unwrap()))
+        if !self.contains_linkable(&global_target_id) {
+            return Err(errors::AddError::NoTarget(errors::NoElementLinkable(
+                global_target_id.to_vec(),
+            )));
+        }
+        let target_element = self.element_value(&global_target_id).unwrap();
+        match target_element {
+            // Never fails since gloabl_target_id refers to a linkable element
+            ElementValue::Link { .. } => Err(errors::LinkTarget(element.into_target().unwrap()))?,
+            ElementValue::Edge { .. } => {
+                if let ElementExt::Edge { source, target, .. } = element {
+                    Err(errors::Unlinkable(source, target))?
+                    // Edge -> Edge can not be
                 }
-                ElementValue::Edge { .. } => {
-                    if let ElementExt::Edge { source, target, .. } = element {
-                        return Err(AddError::Unlinkable(source, target));
-                        // Edge -> Edge can not be
-                    }
-                }
-                ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => (),
-            },
+            }
+            ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => (),
         };
         // target_element is either node or hypergrpha, or edge only if element is a link
-        let target_element = target_option_element.unwrap();
         // Check that we are not linking edge with edge
         if source_element.is_edge() && target_element.is_edge() {
             if let ElementExt::Link { source, target, .. } = element {
-                return Err(AddError::Unlinkable(source, target)); // Edge -> Edge can not be
+                Err(errors::Unlinkable(source, target))? // Edge -> Edge can not be
             }
         }
         // Check that we are linking through an edge
@@ -123,7 +100,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
             && (target_element.is_node() || target_element.is_hypergraph())
         {
             if let ElementExt::Link { source, target, .. } = element {
-                return Err(AddError::Unlinkable(source, target)); // (node or h) -> (node or h) can not be
+                Err(errors::Unlinkable(source, target))? // (node or h) -> (node or h) can not be
             }
         }
         // Check coherence of location with respect to source and target
@@ -156,11 +133,11 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
 
         if !(coherent_rule_same_hypergraph || coherent_rule_nested || coherent_rule_nonintersecting)
         {
-            return Err(AddError::IncoherentLink(
+            Err(errors::IncoherentLink(
                 location.to_vec(),
                 global_source_id.clone(),
                 global_target_id.clone(),
-            ));
+            ))?
         }
 
         // Now the connection is valid
@@ -287,7 +264,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         target: impl AsRef<[usize]>,
         value: E,
         location: impl AsRef<[usize]>,
-    ) -> Result<Vec<usize>, AddError> {
+    ) -> Result<Vec<usize>, errors::AddError> {
         let element = ElementExt::Edge {
             source: source.as_ref().to_vec(),
             target: target.as_ref().to_vec(),
@@ -308,7 +285,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         &mut self,
         value: impl Into<Option<H>>,
         location: impl AsRef<[usize]>,
-    ) -> Result<Vec<usize>, AddError> {
+    ) -> Result<Vec<usize>, errors::AddError> {
         let element = ElementExt::Hypergraph {
             value: value.into(),
         };
@@ -321,7 +298,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         target: impl AsRef<[usize]>,
         value: impl Into<Option<L>>,
         location: impl AsRef<[usize]>,
-    ) -> Result<Vec<usize>, AddError> {
+    ) -> Result<Vec<usize>, errors::AddError> {
         let element = ElementExt::Link {
             source: source.as_ref().to_vec(),
             target: target.as_ref().to_vec(),
@@ -342,7 +319,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         &mut self,
         value: N,
         location: impl AsRef<[usize]>,
-    ) -> Result<Vec<usize>, AddError> {
+    ) -> Result<Vec<usize>, errors::AddError> {
         let element = ElementExt::Node { value };
         self.add_element(element, location)
     }

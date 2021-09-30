@@ -1,18 +1,14 @@
 use core::{fmt::Debug, mem};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
-use crate::{
-    direction::Direction,
-    elements::*,
-    errors,
-    iterators::{IdIter, NeighborIter},
-    traits::HypergraphClass,
-};
+use crate::{direction::Direction, elements::*, errors, traits::HypergraphClass};
 
 mod add;
 mod classes;
+mod find;
+mod get;
+mod remove;
 
 pub use classes::{Main, Sub};
 
@@ -116,14 +112,14 @@ impl<'a, N, E, H, L, Ty>
     pub fn links_of(
         &self,
         id: impl AsRef<[usize]>,
-    ) -> Result<&'a Vec<(Vec<usize>, Direction)>, GetError> {
+    ) -> Result<&'a Vec<(Vec<usize>, Direction)>, errors::GetError> {
         match self {
             HypergraphEnum::Original(h) => h.links_of(id),
             HypergraphEnum::Sub(h) => h.links_of(id),
         }
     }
 
-    pub fn element_type(&self, id: impl AsRef<[usize]>) -> Result<ElementType, GetError> {
+    pub fn element_type(&self, id: impl AsRef<[usize]>) -> Result<ElementType, errors::GetError> {
         match self {
             HypergraphEnum::Original(h) => h.element_type(id),
             HypergraphEnum::Sub(h) => h.element_type(id),
@@ -164,7 +160,10 @@ impl<'a, N, E, H, L, Ty>
 impl<'a, N, E, H, L, Ty>
     HypergraphEnum<&'a mut Hypergraph<N, E, H, L, Ty>, &'a mut Hypergraph<N, E, H, L, Sub>>
 {
-    pub fn element_type(&mut self, id: impl AsRef<[usize]>) -> Result<ElementType, GetError> {
+    pub fn element_type(
+        &mut self,
+        id: impl AsRef<[usize]>,
+    ) -> Result<ElementType, errors::GetError> {
         match self {
             HypergraphEnum::Original(h) => h.element_type(id),
             HypergraphEnum::Sub(h) => h.element_type(id),
@@ -343,719 +342,97 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     }
 }
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-#[error("Failed to get element.")]
-pub enum GetError {
-    NoEdge(#[from] errors::NoEdge),
-    NoElement(#[from] errors::NoElement),
-    NoElementLinkable(#[from] errors::NoElementLinkable),
-    NoHypergraph(#[from] errors::NoHypergraph),
-    NoLink(#[from] errors::NoLink),
-    NoNode(#[from] errors::NoNode),
-    /// The method does not apply to the root hypergraph.
-    OriginalHypergraph,
-}
-
-/// # Get
-///
-/// Access node and edge weights (associated data).
-impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    /// Returns the next valid id.
-    ///
-    /// Returns `None` if `id` there is no valid id that bigger than `id`.
-    ///
-    /// Order is lexicographic.
-    pub fn next_id(&self, id: impl AsRef<[usize]>) -> Option<Vec<usize>> {
-        let mut id = id.as_ref().to_vec();
-        let bound = self.id_bound();
-        if id > bound {
-            return None;
-        } else if id.is_empty() {
-            id = vec![0];
-        } else {
-            match self.element_type(&id) {
-                Err(_) => {
-                    let last_local_id = id.last_mut().unwrap(); // Never fails since id is not empty
-                    *last_local_id += 1;
-                    if *last_local_id >= bound[id.len() - 1] {
-                        id.pop(); // Go back one level
-                        let last_local_id = match id.last_mut() {
-                            None => return None,
-                            Some(i) => i,
-                        };
-                        *last_local_id += 1;
-                    }
-                }
-                Ok(element_type) => match element_type {
-                    ElementType::Edge | ElementType::Link | ElementType::Node => {
-                        let last_local_id = id.last_mut().unwrap(); // Never fails since id is not empty
-                        *last_local_id += 1;
-                    }
-                    ElementType::Hypergraph => {
-                        id.push(0);
-                    }
-                },
-            }
-        }
-        if self.contains(&id) {
-            return Some(id);
-        } else {
-            return self.next_id(id);
-        }
-    }
-
-    /// Returns the local id that will be given to the next element added.
-    pub fn next_local_id(&self) -> usize {
-        self.next_id
-    }
-
-    /// Returns an iterator over all valid ids of `self`.
-    pub fn ids<'a>(&'a self) -> IdIter<'a, N, E, H, L, Ty> {
-        IdIter::new(&self)
-    }
-
-    /// Returns the class marker.
-    pub fn class(&self) -> &Ty {
-        &self.class
-    }
-    /// Returns the hypergraph with id `id`, if it exists.
-    ///
-    /// `None` is returned when the element does not exists.
-    pub fn hypergraph(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<HypergraphEnum<&Self, &Hypergraph<N, E, H, L, Sub>>, GetError> {
-        let id = id.as_ref();
-        if id.is_empty() {
-            return Ok(HypergraphEnum::Original(&self));
-        }
-        let h = self.subhypergraph(id)?;
-        Ok(HypergraphEnum::Sub(h))
-    }
-
-    /// Returns the hypergraph in which `id` lives, if it exists.
-    ///
-    /// `None` is returned when: there is no element with id `id`; or `id` is empty.
-    pub fn hypergraph_of(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<HypergraphEnum<&Self, &Hypergraph<N, E, H, L, Sub>>, GetError> {
-        let id = id.as_ref();
-        match id.len() {
-            0 => Err(GetError::OriginalHypergraph),
-            1 => Ok(HypergraphEnum::Original(&self)),
-            _ => {
-                let id = &id[0..id.len() - 1];
-                let subhypergraph = self.subhypergraph(&id)?;
-                Ok(HypergraphEnum::Sub(subhypergraph))
-            }
-        }
-    }
-
-    /// Returns the hypergraph in which `id` lives, if it exists.
-    ///
-    /// `None` is returned when there is no element with id `id`.
-    pub fn hypergraph_of_mut(
-        &mut self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<HypergraphEnum<&mut Self, &mut Hypergraph<N, E, H, L, Sub>>, GetError> {
-        let id = id.as_ref();
-        match id.len() {
-            0 => Err(GetError::OriginalHypergraph),
-            1 => Ok(HypergraphEnum::Original(self)),
-            _ => {
-                let id = &id[0..id.len() - 1];
-                let subhypergraph = self.subhypergraph_mut(&id)?;
-                Ok(HypergraphEnum::Sub(subhypergraph))
-            }
-        }
-    }
-
-    /// Returns the hypergraph with id `id`, if it exists.
-    ///
-    /// `None` is returned when the element does not exists.
-    pub fn hypergraph_mut(
-        &mut self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<HypergraphEnum<&mut Self, &mut Hypergraph<N, E, H, L, Sub>>, GetError> {
-        let id = id.as_ref();
-        if id.is_empty() {
-            return Ok(HypergraphEnum::Original(self));
-        }
-        match self.subhypergraph_mut(&id) {
-            Some(h) => Ok(HypergraphEnum::Sub(h)),
-            None => Err(errors::NoHypergraph(id.to_vec()))?,
-        }
-    }
-
-    /// Returns the links of an element of the current hypergraph, `None` if the element does not exists or is a link.
-    pub fn links_of(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<&Vec<(Vec<usize>, Direction)>, GetError> {
-        let id = id.as_ref();
-        if !self.contains_linkable(&id) {
-            Err(errors::NoElementLinkable(id.to_vec()))?;
-        }
-        let hypergraph = self.hypergraph_of(&id)?;
-        let local_id = id.last().unwrap(); // Never fails since id refers to a linkable element
-        let links = match hypergraph.element_type(&id).unwrap() // Never fails since id refers to a linkable element
-        {
-            ElementType::Edge => {
-                hypergraph
-                    .raw_edges()
-                    .get(local_id)
-                    .map(|edge_full| &edge_full.1)
-                    .unwrap() // Never fails since id refers to a linkable element
-            }
-            ElementType::Hypergraph => {
-                hypergraph
-                    .raw_hypergraphs()
-                    .get(local_id)
-                    .map(|hypergraph_full| &hypergraph_full.1)
-                    .unwrap() // Never fails since id refers to a linkable element
-            }
-            ElementType::Link => unreachable!(), // Since id is a linkable element
-            ElementType::Node => {
-                hypergraph
-                    .raw_nodes()
-                    .get(local_id)
-                    .map(|node_full| &node_full.1)
-                    .unwrap() // Never fails since id refers to a linkable element
-            }
-        };
-        Ok(links)
-    }
-
-    /// Returns the links of an element of the current hypergraph, `None` if the element does not exists or is a link.
-    pub(crate) fn links_of_mut(
-        &mut self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<&mut Vec<(Vec<usize>, Direction)>, GetError> {
-        let id = id.as_ref();
-        if !self.contains_linkable(&id) {
-            Err(errors::NoElementLinkable(id.to_vec()))?;
-        }
-        let mut hypergraph = self.hypergraph_of_mut(&id)?;
-        let local_id = id.last().unwrap(); // Never fails since id refers to a linkable element
-        let links = match hypergraph.element_type([*local_id]).unwrap() // Never fails since id refers to a linkable element
-        {
-            ElementType::Edge => {
-                hypergraph
-                    .raw_edges_mut()
-                    .get_mut(local_id)
-                    .map(|edge_full| &mut edge_full.1)
-                    .unwrap() // Never fails since id refers to a linkable element
-            }
-            ElementType::Hypergraph => {
-                hypergraph
-                    .raw_hypergraphs_mut()
-                    .get_mut(local_id)
-                    .map(|hypergraph_full| &mut hypergraph_full.1)
-                    .unwrap() // Never fails since id refers to a linkable element
-            }
-            ElementType::Link => unreachable!(), // Since id is a linkable element
-            ElementType::Node => {
-                hypergraph
-                    .raw_nodes_mut()
-                    .get_mut(local_id)
-                    .map(|node_full| &mut node_full.1)
-                    .unwrap() // Never fails since id refers to a linkable element
-            }
-        };
-        Ok(links)
-    }
-
-    /// Returns an iterator over outgoing neighbors.
-    pub fn neighbors(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<NeighborIter<N, E, H, L, Ty>, crate::iterators::neighbor_iter::NewError> {
-        let direction = Direction::Outgoing;
-        self.neighbors_directed(id, direction)
-    }
-
-    pub fn neighbors_directed(
-        &self,
-        id: impl AsRef<[usize]>,
-        direction: Direction,
-    ) -> Result<NeighborIter<N, E, H, L, Ty>, crate::iterators::neighbor_iter::NewError> {
-        NeighborIter::new(self, id, direction)
-    }
-
-    pub fn element_type(&self, id: impl AsRef<[usize]>) -> Result<ElementType, GetError> {
-        self.element_value(id)
-            .map(|element| -> ElementType { element.into() })
-    }
-
-    pub fn element_value(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<ElementValue<&N, &E, &H, &L>, GetError> {
-        let id = id.as_ref();
-        if id.is_empty() {
-            return Ok(ElementValue::Hypergraph {
-                value: self.value().as_ref(),
-            });
-        }
-
-        let local_id = id.last().unwrap(); // Never fails by previous check
-
-        let hypergraph = self.hypergraph_of(&id)?;
-
-        let element;
-        if let Some(edge_full) = hypergraph.raw_edges().get(local_id) {
-            element = ElementValue::Edge {
-                value: &edge_full.0,
-            };
-            return Ok(element);
-        } else if let Some(hypergraph_full) = hypergraph.raw_hypergraphs().get(local_id) {
-            element = ElementValue::Hypergraph {
-                value: hypergraph_full.0.value.as_ref(),
-            };
-            return Ok(element);
-        } else if let Some(link_full) = hypergraph.raw_links().get(local_id) {
-            element = ElementValue::Link {
-                value: (&link_full.0).as_ref(),
-            };
-            return Ok(element);
-        } else if let Some(node_full) = hypergraph.raw_nodes().get(local_id) {
-            element = ElementValue::Node {
-                value: &node_full.0,
-            };
-            return Ok(element);
-        };
-        Err(errors::NoElement(id.to_vec()))?
-    }
-
-    pub fn edge_value(&self, id: impl AsRef<[usize]>) -> Result<&E, GetError> {
-        let id = id.as_ref();
-        if !self.contains_edge(&id) {
-            Err(errors::NoEdge(id.to_vec()))?
-        }
-        let hypergraph = self.hypergraph_of(&id).unwrap(); // Never fails since id refers to a valid edge
-        let local_id = id.last().unwrap(); // Never fails since id refers to a valid edge
-        let edge_value = hypergraph
-            .raw_edges()
-            .get(local_id)
-            .map(|edge_full| &edge_full.0)
-            .unwrap(); // Never fails since id refers to a valid edge
-        Ok(edge_value)
-    }
-
-    /// Returns the pair of gloalbal `id`s `(source, target)` if the link exists.
-    pub fn link_endpoints(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<(&Vec<usize>, &Vec<usize>), GetError> {
-        let id = id.as_ref();
-        if !self.contains_link(&id) {
-            Err(errors::NoLink(id.to_vec()))?
-        }
-        let hypergraph = self.hypergraph_of(&id).unwrap(); // Never fails since id refers to a valid link
-        let local_id = id.last().unwrap(); // Never fails since id refers to a valid link
-        let link_endpoints = hypergraph
-            .raw_links()
-            .get(local_id)
-            .map(|link_full| (&link_full.1, &link_full.2))
-            .unwrap(); // Never fails since id refers to a valid link
-        Ok(link_endpoints)
-    }
-
-    pub fn link_value(&self, id: impl AsRef<[usize]>) -> Result<&Option<L>, GetError> {
-        let id = id.as_ref();
-        if !self.contains_link(&id) {
-            Err(errors::NoLink(id.to_vec()))?
-        }
-        let hypergraph = self.hypergraph_of(&id).unwrap(); // Never fails since id refers to a valid link
-        let local_id = id.last().unwrap(); // Never fails since id refers to a valid link
-        let link_value = hypergraph
-            .raw_links()
-            .get(local_id)
-            .map(|link_full| &link_full.0)
-            .unwrap(); // Never fails since id refers to a valid link
-        Ok(link_value)
-    }
-
-    /// Returns the subgraph with id `id`, if it exists.
-    ///
-    /// `None` is returned when `id` is empty, or there is no (sub-)hypergraph with such `id`.
-    pub fn subhypergraph(
-        &self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<&Hypergraph<N, E, H, L, Sub>, GetError> {
-        let id = id.as_ref().to_vec();
-        match id.len() {
-            0 => Err(GetError::OriginalHypergraph),
-            1 => match self.hypergraphs.get(&id[0]).map(|h_full| &h_full.0) {
-                Some(h) => Ok(h),
-                None => Err(errors::NoHypergraph(id))?,
-            },
-            _ => {
-                let local_id = id[0]; // Never fails since id is non empty.
-                let mut subhypergraph = match self.raw_hypergraphs().get(&local_id) {
-                    None => Err(errors::NoHypergraph(vec![local_id]))?,
-                    Some(hypergraph_full) => hypergraph_full.0,
-                };
-                for (counter, local_id) in id.iter().enumerate().skip(1) {
-                    subhypergraph = match subhypergraph.raw_hypergraphs().get(local_id) {
-                        None => Err(errors::NoHypergraph(id[0..=counter].to_vec()))?,
-                        Some(hypergraph_full) => hypergraph_full.0,
-                    };
-                }
-                Ok(&subhypergraph)
-            }
-        }
-    }
-
-    pub fn hypergraph_value(&self, id: impl AsRef<[usize]>) -> Result<&Option<H>, GetError> {
-        let id = id.as_ref();
-        if !self.contains_hypergraph(id) {
-            Err(errors::NoHypergraph(id.to_vec()))?
-        }
-
-        match id.len() {
-            0 => Ok(self.value()),
-            _ => {
-                let hypergraph = self.hypergraph_of(&id)?;
-                let local_id = id.last().unwrap(); // Never fails since id is non empty.
-                let hypergraph_value = hypergraph
-                    .raw_hypergraphs()
-                    .get(local_id)
-                    .map(|hypergraph_full| &hypergraph_full.0.value)
-                    .unwrap(); // Never fails since id refers to a hypergraph
-                Ok(hypergraph_value)
-            }
-        }
-    }
-
-    pub fn node_value(&self, id: impl AsRef<[usize]>) -> Result<&N, GetError> {
-        let id = id.as_ref();
-        if !self.contains_node(id) {
-            Err(errors::NoNode(id.to_vec()))?
-        }
-
-        match id.len() {
-            0 => Err(GetError::OriginalHypergraph),
-            _ => {
-                let hypergraph = self.hypergraph_of(&id)?;
-                let local_id = id.last().unwrap(); // Never fails since id is non empty.
-                let node_value = hypergraph
-                    .raw_nodes()
-                    .get(local_id)
-                    .map(|node_full| &node_full.0)
-                    .unwrap(); // Never fails since id refers to a hypergraph
-                Ok(node_value)
-            }
-        }
-    }
-
-    pub fn element_value_mut(
-        &mut self,
-        id: impl AsRef<[usize]>,
-    ) -> Option<ElementValue<&mut N, &mut E, &mut H, &mut L>> {
-        let id = id.as_ref();
-        if id.is_empty() {
-            return Some(ElementValue::Hypergraph {
-                value: self.value_mut().as_mut(),
-            });
-        }
-
-        match self.element_type(id) {
-            Some(element_type) => {
-                let local_id = id.last().unwrap(); // Never fails by previous check
-                let hypergraph = self.hypergraph_of_mut(id).unwrap(); // Never fails since id is a valid element
-                let element;
-                match element_type {
-                    ElementType::Edge => {
-                        let edge_full = hypergraph.raw_edges_mut().get_mut(local_id).unwrap(); // Never fails since id is a valid element
-                        element = ElementValue::Edge {
-                            value: &mut edge_full.0,
-                        };
-                    }
-                    ElementType::Hypergraph => {
-                        let hypergraph_full =
-                            hypergraph.raw_hypergraphs_mut().get_mut(local_id).unwrap(); // Never fails since id is a valid element
-                        element = ElementValue::Hypergraph {
-                            value: hypergraph_full.0.value.as_mut(),
-                        };
-                    }
-                    ElementType::Link => {
-                        let link_full = hypergraph.raw_links_mut().get_mut(local_id).unwrap(); // Never fails since id is a valid element
-                        element = ElementValue::Link {
-                            value: link_full.0.as_mut(),
-                        };
-                    }
-                    ElementType::Node => {
-                        let node_full = hypergraph.raw_nodes_mut().get_mut(local_id).unwrap(); // Never fails since id is a valid element
-                        element = ElementValue::Node {
-                            value: &mut node_full.0,
-                        };
-                    }
-                }
-                Some(element)
-            }
-            None => None,
-        }
-    }
-
-    pub fn raw_edges(&self) -> &IndexMap<usize, (E, Vec<(Vec<usize>, Direction)>)> {
-        &self.edges
-    }
-
-    pub fn raw_links(&self) -> &IndexMap<usize, (Option<L>, Vec<usize>, Vec<usize>)> {
-        &self.links
-    }
-
-    pub fn raw_hypergraphs(
-        &self,
-    ) -> &IndexMap<usize, (Hypergraph<N, E, H, L, Sub>, Vec<(Vec<usize>, Direction)>)> {
-        &self.hypergraphs
-    }
-
-    pub fn raw_nodes(&self) -> &IndexMap<usize, (N, Vec<(Vec<usize>, Direction)>)> {
-        &self.nodes
-    }
-
-    pub(crate) fn raw_edges_mut<'a>(
-        &'a mut self,
-    ) -> &'a mut IndexMap<usize, (E, Vec<(Vec<usize>, Direction)>)> {
-        &mut self.edges
-    }
-
-    pub(crate) fn raw_links_mut(
-        &mut self,
-    ) -> &mut IndexMap<usize, (Option<L>, Vec<usize>, Vec<usize>)> {
-        &mut self.links
-    }
-
-    pub(crate) fn raw_hypergraphs_mut(
-        &mut self,
-    ) -> &mut IndexMap<usize, (Hypergraph<N, E, H, L, Sub>, Vec<(Vec<usize>, Direction)>)> {
-        &mut self.hypergraphs
-    }
-
-    pub(crate) fn raw_nodes_mut(
-        &mut self,
-    ) -> &mut IndexMap<usize, (N, Vec<(Vec<usize>, Direction)>)> {
-        &mut self.nodes
-    }
-
-    pub fn edge_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut E> {
-        if let Some(h) = self.hypergraph_of_mut(&id) {
-            if let Some(local_id) = id.as_ref().last() {
-                h.raw_edges_mut()
-                    .get_mut(local_id)
-                    .map(|edge_full| &mut edge_full.0)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn link_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut Option<L>> {
-        if let Some(h) = self.hypergraph_of_mut(&id) {
-            if let Some(local_id) = id.as_ref().last() {
-                h.raw_links_mut()
-                    .get_mut(local_id)
-                    .map(|link_full| &mut link_full.0)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn hypergraph_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut Option<H>> {
-        if id.as_ref().is_empty() {
-            Some(self.value_mut())
-        } else if let Some(h) = self.hypergraph_of_mut(&id) {
-            if let Some(local_id) = id.as_ref().last() {
-                h.raw_hypergraphs_mut()
-                    .get_mut(local_id)
-                    .map(|hypergraph_full| &mut hypergraph_full.0.value)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    pub fn node_value_mut(&mut self, id: impl AsRef<[usize]>) -> Option<&mut N> {
-        if let Some(h) = self.hypergraph_of_mut(&id) {
-            if let Some(local_id) = id.as_ref().last() {
-                h.raw_nodes_mut()
-                    .get_mut(local_id)
-                    .map(|node_full| &mut node_full.0)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }
-
-    /// Returns the subgraph with id `id`, if it exists.
-    ///
-    /// `None` is returned when `id` is empty, or there is no (sub-)hypergraph with such `id`.
-    ///
-    /// Notice that the type of `hypergraph` is defined dynamically.
-    pub fn subhypergraph_mut(
-        &mut self,
-        id: impl AsRef<[usize]>,
-    ) -> Result<&mut Hypergraph<N, E, H, L, Sub>, GetError> {
-        let id = id.as_ref().to_vec();
-        match id.len() {
-            0 => Err(GetError::OriginalHypergraph),
-            1 => match self.hypergraphs.get_mut(&id[0]).map(|h_full| &mut h_full.0) {
-                Some(h) => Ok(h),
-                None => Err(errors::NoHypergraph(id))?,
-            },
-            _ => {
-                let local_id = id[0]; // Never fails since id is non empty.
-                let mut subhypergraph = match self.raw_hypergraphs_mut().get_mut(&local_id) {
-                    None => Err(errors::NoHypergraph(vec![local_id]))?,
-                    Some(hypergraph_full) => hypergraph_full.0,
-                };
-                for (counter, local_id) in id.iter().enumerate().skip(1) {
-                    subhypergraph = match subhypergraph.raw_hypergraphs_mut().get_mut(local_id) {
-                        None => Err(errors::NoHypergraph(id[0..=counter].to_vec()))?,
-                        Some(hypergraph_full) => hypergraph_full.0,
-                    };
-                }
-                Ok(&mut subhypergraph)
-            }
-        }
-    }
-
-    pub fn value(&self) -> &Option<H> {
-        &self.value
-    }
-    pub fn value_mut(self: &mut Self) -> &mut Option<H> {
-        &mut self.value
-    }
-}
 /// # Set
 impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    /// Change the value of the hypergraph as a whole.
-    pub fn set_value(&mut self, new_value: impl Into<Option<H>>) -> &mut Self {
-        self.value = new_value.into();
-        self
+    pub fn set_edge_value(
+        &mut self,
+        id: impl AsRef<[usize]>,
+        mut new_value: E,
+    ) -> Result<E, errors::SetError> {
+        let id = id.as_ref();
+        if !self.contains_edge(id) {
+            Err(errors::NoEdge(id.to_vec()))?
+        }
+        let old_value = self.edge_value_mut(id).unwrap(); // Never fails since id refers to an edge
+        mem::swap(old_value, &mut new_value);
+        Ok(new_value)
     }
 
     pub fn set_element_value(
         &mut self,
         id: impl AsRef<[usize]>,
         new_value: ElementValue<N, E, H, L>,
-    ) -> Option<ElementValue<N, E, H, L>> {
+    ) -> Result<ElementValue<N, E, H, L>, errors::SetError> {
         match new_value {
             ElementValue::Edge { value } => {
-                let old_value = match self.set_edge_value(id, value) {
-                    None => return None,
-                    Some(v) => v,
-                };
-                Some(ElementValue::Edge { value: old_value })
+                let old_value = self.set_edge_value(id, value)?;
+                Ok(ElementValue::Edge { value: old_value })
             }
             ElementValue::Hypergraph { value } => {
-                let old_value = match self.set_hypergraph_value(id, value) {
-                    None => return None,
-                    Some(v) => v,
-                };
-                Some(ElementValue::Hypergraph { value: old_value })
+                let old_value = self.set_hypergraph_value(id, value)?;
+                Ok(ElementValue::Hypergraph { value: old_value })
             }
             ElementValue::Link { value } => {
-                let old_value = match self.set_link_value(id, value) {
-                    None => return None,
-                    Some(v) => v,
-                };
-                Some(ElementValue::Link { value: old_value })
+                let old_value = self.set_link_value(id, value)?;
+                Ok(ElementValue::Link { value: old_value })
             }
             ElementValue::Node { value } => {
-                let old_value = match self.set_node_value(id, value) {
-                    None => return None,
-                    Some(v) => v,
-                };
-                Some(ElementValue::Node { value: old_value })
+                let old_value = self.set_node_value(id, value)?;
+                Ok(ElementValue::Node { value: old_value })
             }
         }
-    }
-
-    pub fn set_edge_value(&mut self, id: impl AsRef<[usize]>, mut new_value: E) -> Option<E> {
-        let id = id.as_ref();
-        let hypergraph = match self.hypergraph_of_mut(&id) {
-            None => return None,
-            Some(h) => h,
-        };
-        let local_id = id.last().unwrap(); // Never fails since id is not empty
-
-        let raw_edges = hypergraph.raw_edges_mut();
-        match raw_edges.get_mut(local_id) {
-            Some((old_value, _links)) => mem::swap(old_value, &mut new_value),
-            None => return None,
-        }
-        Some(new_value)
     }
 
     pub fn set_link_value(
         &mut self,
         id: impl AsRef<[usize]>,
         new_value: impl Into<Option<L>>,
-    ) -> Option<Option<L>> {
+    ) -> Result<Option<L>, errors::SetError> {
         let id = id.as_ref();
         let mut new_value = new_value.into();
-        let hypergraph = match self.hypergraph_of_mut(&id) {
-            None => return None,
-            Some(h) => h,
-        };
-        let local_id = id.last().unwrap(); // Never fails since id is not empty
-
-        let raw_links = hypergraph.raw_links_mut();
-        match raw_links.get_mut(local_id) {
-            Some((old_value, _, _)) => mem::swap(old_value, &mut new_value),
-            None => return None,
+        if !self.contains_link(id) {
+            Err(errors::NoLink(id.to_vec()))?
         }
-        Some(new_value)
+        let old_value = self.link_value_mut(id).unwrap(); // Never fails since id refers to a link
+        mem::swap(old_value, &mut new_value);
+        Ok(new_value)
     }
 
     pub fn set_hypergraph_value(
         &mut self,
         id: impl AsRef<[usize]>,
         new_value: impl Into<Option<H>>,
-    ) -> Option<Option<H>> {
+    ) -> Result<Option<H>, errors::SetError> {
         let id = id.as_ref();
         let mut new_value = new_value.into();
-        let hypergraph = match self.hypergraph_of_mut(&id) {
-            None => return None,
-            Some(h) => h,
-        };
-        let local_id = id.last().unwrap(); // Never fails since id is not empty
-
-        let raw_hypergraphs = hypergraph.raw_hypergraphs_mut();
-        match raw_hypergraphs.get_mut(local_id) {
-            Some((h, _links)) => mem::swap(&mut h.value, &mut new_value),
-            None => return None,
+        if !self.contains_hypergraph(id) {
+            Err(errors::NoHypergraph(id.to_vec()))?
         }
-        Some(new_value)
+        let old_value = self.hypergraph_value_mut(id).unwrap(); // Never fails since id refers to a link
+        mem::swap(old_value, &mut new_value);
+        Ok(new_value)
     }
 
-    pub fn set_node_value(&mut self, id: impl AsRef<[usize]>, mut new_value: N) -> Option<N> {
+    pub fn set_node_value(
+        &mut self,
+        id: impl AsRef<[usize]>,
+        mut new_value: N,
+    ) -> Result<N, errors::SetError> {
         let id = id.as_ref();
-        let hypergraph = match self.hypergraph_of_mut(&id) {
-            None => return None,
-            Some(h) => h,
-        };
-        let local_id = id.last().unwrap(); // Never fails since id is not empty
-
-        let raw_nodes = hypergraph.raw_nodes_mut();
-        match raw_nodes.get_mut(local_id) {
-            Some((old_value, _links)) => mem::swap(old_value, &mut new_value),
-            None => return None,
+        if !self.contains_hypergraph(id) {
+            Err(errors::NoNode(id.to_vec()))?
         }
-        Some(new_value)
+        let old_value = self.node_value_mut(id).unwrap(); // Never fails since id refers to a link
+        mem::swap(old_value, &mut new_value);
+        Ok(new_value)
+    }
+
+    /// Change the value of the hypergraph as a whole.
+    pub fn set_value(&mut self, new_value: impl Into<Option<H>>) -> Option<H> {
+        let mut new_value = new_value.into();
+        let old_value = self.value_mut();
+        mem::swap(old_value, &mut new_value);
+        new_value
     }
 }
 
@@ -1183,11 +560,11 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
 
     pub fn contains_hypergraph(&self, id: impl AsRef<[usize]>) -> bool {
         let id = id.as_ref();
-        id.is_empty() || self.contains_subhypegraph(id)
+        id.is_empty() || self.contains_subhypergraph(id)
     }
 
     /// Returns true if `id` refers to a subhypergraph (possibly nested).
-    pub fn contains_subhypegraph(&self, id: impl AsRef<[usize]>) -> bool {
+    pub fn contains_subhypergraph(&self, id: impl AsRef<[usize]>) -> bool {
         let id = id.as_ref();
         match id.len() {
             0 => false,
@@ -1258,265 +635,6 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     }
     pub fn is_sub(&self) -> bool {
         self.class().is_main()
-    }
-}
-
-/// # Find
-///
-/// Find elements.
-impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    /// Returns the id of the link that belongs to hypergraph `location` linking `source` and `target`.
-    ///
-    /// An empty `location` means the main hypergraph.
-    ///
-    /// Returns `None` if it does not exists.
-    pub fn find_link_id(
-        &mut self,
-        source: impl AsRef<[usize]>,
-        target: impl AsRef<[usize]>,
-        value: &Option<L>,
-        location: impl AsRef<[usize]>,
-    ) -> Option<Vec<usize>>
-    where
-        L: PartialEq,
-    {
-        let location = location.as_ref();
-        let hypergraph = match self.hypergraph(location) {
-            Some(h) => h,
-            None => return None,
-        };
-        let links = hypergraph.raw_links();
-        let source = source.as_ref().to_vec();
-        let target = target.as_ref().to_vec();
-        for (local_id, link_full) in links {
-            if (link_full.0.as_ref(), &link_full.1, &link_full.2)
-                == (value.as_ref(), &source, &target)
-            {
-                let mut location = location.to_vec();
-                location.push(*local_id);
-                return Some(location);
-            }
-        }
-        None
-    }
-    pub fn find_element_by_value(&self, value: ElementValue<&N, &E, &H, &L>) -> Option<Vec<usize>> {
-        todo!()
-    }
-
-    pub fn find_node_by_value(&self, value: &N) -> Option<Vec<usize>> {
-        todo!()
-    }
-
-    pub fn find_edge_by_value(&self, value: &E) -> Option<Vec<usize>> {
-        todo!()
-    }
-
-    pub fn find_link_by_value(&self, value: &Option<L>) -> Option<Vec<usize>> {
-        todo!()
-    }
-
-    pub fn find_hypergraph_by_value(&self, value: &Option<H>) -> Option<Vec<usize>> {
-        todo!()
-    }
-}
-
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
-#[error("Failed to remove element.")]
-pub enum RemoveError {
-    GetError(#[from] GetError),
-}
-
-/// # Remove
-///
-/// Remove elements.
-impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    /// Removes the element with id `id`.
-    ///
-    /// Returns true if the element was removed, otherwise `false`.
-    pub fn remove(&mut self, id: impl AsRef<[usize]>) -> Result<(), RemoveError> {
-        match self.element_type(&id)? {
-            ElementType::Edge => self.remove_edge(id)?,
-            ElementType::Hypergraph => self.remove_hypergraph(id)?,
-            ElementType::Link => self.remove_link(id)?,
-            ElementType::Node => self.remove_node(id)?,
-        }
-        Ok(())
-    }
-
-    pub fn remove_edge(&mut self, id: impl AsRef<[usize]>) -> Option<E> {
-        let id = id.as_ref();
-        match id.len() {
-            0 => None,
-            _ => {
-                let local_id = id.last().unwrap(); // Never fails since id is not empty
-                let hypergraph = match self.hypergraph_of_mut(id) {
-                    None => return None,
-                    Some(h) => h,
-                };
-                let raw_edges = hypergraph.raw_edges_mut();
-                let (edge_value, edge_links) = match raw_edges.remove(local_id) {
-                    None => return None,
-                    Some(edge_full) => edge_full,
-                };
-                for (link_id, _) in edge_links {
-                    self.remove_link(link_id);
-                }
-                Some(edge_value)
-            }
-        }
-    }
-
-    pub fn remove_hypergraph(&mut self, id: impl AsRef<[usize]>) -> Option<Option<H>> {
-        let id = id.as_ref();
-        match id.len() {
-            0 => None,
-            _ => {
-                let local_id = id.last().unwrap(); // Never fails since id is not empty
-                let hypergraph = match self.hypergraph_of_mut(id) {
-                    None => return None,
-                    Some(h) => h,
-                };
-                let raw_hypergraphs = hypergraph.raw_hypergraphs_mut();
-                let (subhypergraph, subhypergraph_links) = match raw_hypergraphs.remove(local_id) {
-                    None => return None,
-                    Some(hypergraph_full) => hypergraph_full,
-                };
-                for (link_id, _) in subhypergraph_links {
-                    self.remove_link(link_id);
-                }
-                let id = id.to_vec();
-                for local_id in subhypergraph.ids() {
-                    let mut gloabl_id = id.clone();
-                    gloabl_id.extend(local_id);
-                    self.remove(gloabl_id);
-                }
-                Some(subhypergraph.value)
-            }
-        }
-    }
-
-    pub fn remove_link(&mut self, id: impl AsRef<[usize]>) -> Option<Option<L>> {
-        let id = id.as_ref();
-        match id.len() {
-            0 => None,
-            _ => {
-                let local_id = id.last().unwrap(); // Never fails since id is not empty
-                let hypergraph = match self.hypergraph_of_mut(&id) {
-                    None => return None,
-                    Some(h) => h,
-                };
-                let raw_links = hypergraph.raw_links_mut();
-                let (link_value, source_id, target_id) = match raw_links.remove(local_id) {
-                    None => return None,
-                    Some(link_full) => link_full,
-                };
-                self.remove_link_from(&id, source_id);
-                self.remove_link_from(&id, target_id);
-                Some(link_value)
-            }
-        }
-    }
-
-    /// Removes the link with id `link_id` from the list of links of the element `id`.  
-    ///
-    ///
-    fn remove_link_from(&mut self, link_id: impl AsRef<[usize]>, id: impl AsRef<[usize]>) -> bool {
-        let id = id.as_ref();
-        let link_id = link_id.as_ref();
-        match id.len() {
-            0 => false,
-            _ => {
-                let local_id = id.last().unwrap(); // Never fails since id is not empty
-                let element_type = match self.element_type(id) {
-                    None => return false,
-                    Some(e) => e,
-                };
-                let hypergraph = self.hypergraph_of_mut(&id).unwrap(); // Never fails since id refers to an element
-                match element_type {
-                    ElementType::Edge => {
-                        let raw_edges = hypergraph.raw_edges_mut();
-                        let (_, edge_links) = match raw_edges.get_mut(local_id) {
-                            None => return false,
-                            Some(edge_full) => edge_full,
-                        };
-                        let link_index =
-                            match edge_links.iter().position(|(l_id, _)| link_id == l_id) {
-                                None => return false, // failure
-                                Some(i) => i,
-                            };
-                        edge_links.remove(link_index);
-                        if edge_links.len() < 2 {
-                            self.remove_edge(id);
-                        }
-                        true
-                    }
-                    ElementType::Hypergraph => {
-                        let raw_hypergraphs = hypergraph.raw_hypergraphs_mut();
-                        let (_, hyperraph_links) = match raw_hypergraphs.get_mut(local_id) {
-                            None => return false,
-                            Some(h) => h,
-                        };
-                        let link_index = match hyperraph_links
-                            .iter()
-                            .position(|(link_id, _)| link_id == id)
-                        {
-                            None => return false, // failure
-                            Some(i) => i,
-                        };
-                        hyperraph_links.remove(link_index);
-                        true
-                    }
-                    ElementType::Link => {
-                        unreachable!() // Should fail
-                    }
-                    ElementType::Node => {
-                        let raw_nodes = hypergraph.raw_nodes_mut();
-                        let (_, node_links) = match raw_nodes.get_mut(local_id) {
-                            None => return false,
-                            Some(node_full) => node_full,
-                        };
-                        let link_index =
-                            match node_links.iter().position(|(l_id, _)| link_id == l_id) {
-                                None => return false, // failure
-                                Some(i) => i,
-                            };
-                        node_links.remove(link_index);
-                        true
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn remove_node(&mut self, id: impl AsRef<[usize]>) -> Option<N> {
-        let id = id.as_ref();
-        match id.len() {
-            0 => None,
-            _ => {
-                let local_id = id.last().unwrap(); // Never fails since id is not empty
-                let hypergraph = match self.hypergraph_of_mut(id) {
-                    None => return None,
-                    Some(h) => h,
-                };
-                let raw_nodes = hypergraph.raw_nodes_mut();
-                let (node_value, node_links) = match raw_nodes.remove(local_id) {
-                    None => return None,
-                    Some(node_full) => node_full,
-                };
-                for (link_id, _) in node_links {
-                    self.remove_link(link_id);
-                }
-                Some(node_value)
-            }
-        }
-    }
-
-    /// Removes the first element matching `value`.
-    pub fn remove_element_by_value(&mut self, value: ElementValue<&N, &E, &H, &L>) -> bool {
-        match self.find_element_by_value(value) {
-            Some(id) => self.remove(id),
-            None => false,
-        }
     }
 }
 

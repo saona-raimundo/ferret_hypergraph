@@ -1,35 +1,18 @@
 # TODO
 
-### Getters
+### Clear
 
-Fail version
-	(element_value_mut)
+Repair clear methods (and add test) to remove the links that are thrown away.
+
+Rearrange tests
 
 ## Hypergraph
 
 ### Removal
 
-Recall all the invariants
-
-- Edges need at least two vertices
-- Edges include links (that might be in other hypergraphs)
-- Links need source and target
-- Hypergraph includes its content
-
-Methods
-
-- remove
-  - Make these functions fallible!
-  - Repair clear functions to correctly remove items before clearing
 - remove_element_by_value
   - Need comparison
     - Use get::ids
-
-### Add
-
-- Rearrange errors:
-  - basic errors in errors mod
-  - enum variant in add mod (only for display proposes) with a single display
 
 ### Getters
 
