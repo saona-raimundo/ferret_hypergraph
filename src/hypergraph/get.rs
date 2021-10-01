@@ -104,31 +104,35 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         }
 
         let local_id = id.last().unwrap(); // Never fails by previous check
-        let hypergraph = self.hypergraph_of_mut(&id)?;
+        let mut hypergraph = self.hypergraph_of_mut(&id)?;
 
-        let element;
-        if let Some(edge_full) = hypergraph.raw_edges_mut().get_mut(local_id) {
-            element = ElementValue::Edge {
-                value: &mut edge_full.0,
-            };
-            return Ok(element);
-        } else if let Some(hypergraph_full) = hypergraph.raw_hypergraphs_mut().get_mut(local_id) {
-            element = ElementValue::Hypergraph {
-                value: hypergraph_full.0.value.as_mut(),
-            };
-            return Ok(element);
-        } else if let Some(link_full) = hypergraph.raw_links_mut().get_mut(local_id) {
-            element = ElementValue::Link {
-                value: (&link_full.0).as_mut(),
-            };
-            return Ok(element);
-        } else if let Some(node_full) = hypergraph.raw_nodes_mut().get_mut(local_id) {
-            element = ElementValue::Node {
-                value: &mut node_full.0,
-            };
-            return Ok(element);
+        let element = match hypergraph.element_type([*local_id])? {
+            ElementType::Edge => {
+                let edge_full = hypergraph.raw_edges_mut().get_mut(local_id).unwrap();
+                ElementValue::Edge {
+                    value: &mut edge_full.0,
+                }
+            }
+            ElementType::Hypergraph => {
+                let hypergraph_full = hypergraph.raw_hypergraphs_mut().get_mut(local_id).unwrap();
+                ElementValue::Hypergraph {
+                    value: hypergraph_full.0.value.as_mut(),
+                }
+            }
+            ElementType::Link => {
+                let link_full = hypergraph.raw_links_mut().get_mut(local_id).unwrap();
+                ElementValue::Link {
+                    value: link_full.0.as_mut(),
+                }
+            }
+            ElementType::Node => {
+                let node_full = hypergraph.raw_nodes_mut().get_mut(local_id).unwrap();
+                ElementValue::Node {
+                    value: &mut node_full.0,
+                }
+            }
         };
-        Err(errors::NoElement(id.to_vec()))?
+        Ok(element)
     }
 
     /// Returns the hypergraph with id `id`, if it exists.
@@ -555,15 +559,15 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
                 let local_id = id[0]; // Never fails since id is non empty.
                 let mut subhypergraph = match self.raw_hypergraphs().get(&local_id) {
                     None => Err(errors::NoHypergraph(vec![local_id]))?,
-                    Some(hypergraph_full) => hypergraph_full.0,
+                    Some(hypergraph_full) => &hypergraph_full.0,
                 };
                 for (counter, local_id) in id.iter().enumerate().skip(1) {
                     subhypergraph = match subhypergraph.raw_hypergraphs().get(local_id) {
                         None => Err(errors::NoHypergraph(id[0..=counter].to_vec()))?,
-                        Some(hypergraph_full) => hypergraph_full.0,
+                        Some(hypergraph_full) => &hypergraph_full.0,
                     };
                 }
-                Ok(&subhypergraph)
+                Ok(subhypergraph)
             }
         }
     }
@@ -588,15 +592,15 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
                 let local_id = id[0]; // Never fails since id is non empty.
                 let mut subhypergraph = match self.raw_hypergraphs_mut().get_mut(&local_id) {
                     None => Err(errors::NoHypergraph(vec![local_id]))?,
-                    Some(hypergraph_full) => hypergraph_full.0,
+                    Some(hypergraph_full) => &mut hypergraph_full.0,
                 };
                 for (counter, local_id) in id.iter().enumerate().skip(1) {
                     subhypergraph = match subhypergraph.raw_hypergraphs_mut().get_mut(local_id) {
                         None => Err(errors::NoHypergraph(id[0..=counter].to_vec()))?,
-                        Some(hypergraph_full) => hypergraph_full.0,
+                        Some(hypergraph_full) => &mut hypergraph_full.0,
                     };
                 }
-                Ok(&mut subhypergraph)
+                Ok(subhypergraph)
             }
         }
     }

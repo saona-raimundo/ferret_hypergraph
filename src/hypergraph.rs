@@ -6,6 +6,7 @@ use crate::{direction::Direction, elements::*, errors, traits::HypergraphClass};
 
 mod add;
 mod classes;
+mod clear;
 mod find;
 mod get;
 mod remove;
@@ -436,38 +437,6 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 }
 
-/// # Clear
-///
-/// A graph that can be cleared.
-impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
-    pub fn clear(&mut self) -> &mut Self {
-        self.clear_edges()
-            .clear_hypergraphs()
-            .clear_links()
-            .clear_nodes()
-    }
-
-    pub fn clear_edges(&mut self) -> &mut Self {
-        self.edges.clear();
-        self
-    }
-
-    pub fn clear_hypergraphs(&mut self) -> &mut Self {
-        self.hypergraphs.clear();
-        self
-    }
-
-    pub fn clear_links(&mut self) -> &mut Self {
-        self.links.clear();
-        self
-    }
-
-    pub fn clear_nodes(&mut self) -> &mut Self {
-        self.nodes.clear();
-        self
-    }
-}
-
 /// # Inform
 ///
 /// Various information about the hypergraph.
@@ -570,13 +539,13 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
             0 => false,
             1 => self.raw_hypergraphs().contains_key(&id[0]),
             _ => {
-                let hypergraph = match self.raw_hypergraphs().get(&id[0]) {
-                    Some(h_full) => h_full.0,
+                let mut hypergraph = match self.raw_hypergraphs().get(&id[0]) {
+                    Some(h_full) => &h_full.0,
                     None => return false,
                 };
                 for local_id in id.iter().skip(1) {
                     hypergraph = match hypergraph.raw_hypergraphs().get(local_id) {
-                        Some(hypergraph_full) => hypergraph_full.0,
+                        Some(hypergraph_full) => &hypergraph_full.0,
                         None => return false,
                     };
                 }
@@ -599,21 +568,6 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         self.edges.len()
     }
 
-    /// Return the number of links in the graph.
-    pub fn link_count(&self) -> usize {
-        self.links.len()
-    }
-
-    /// Return the number of hypergraphs in the graph (including itself).
-    pub fn hypergraph_count(&self) -> usize {
-        1 + self.hypergraphs.len()
-    }
-
-    /// Return the number of nodes in the graph.
-    pub fn node_count(&self) -> usize {
-        self.nodes.len()
-    }
-
     /// Returns a bound on valid ids.
     ///
     /// All valid ids are strictly smaller than the output (in lexicographic order).
@@ -626,6 +580,35 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
                 result
             }
         }
+    }
+
+    /// Returns `true` if there are no nodes or hypergraphs.
+    ///
+    /// # Esamples
+    ///
+    /// New hypergraphs are always empty.
+    /// ```
+    /// # use ferret_hypergraph::Hypergraph;
+    /// let h = Hypergraph::<(), ()>::new();
+    /// assert!(h.is_empty());
+    /// ```
+    pub fn id_empty(&self) -> bool {
+        self.raw_nodes().is_empty() && self.raw_hypergraphs().is_empty()
+    }
+
+    /// Return the number of hypergraphs in the graph (including itself).
+    pub fn hypergraph_count(&self) -> usize {
+        1 + self.hypergraphs.len()
+    }
+
+    /// Return the number of links in the graph.
+    pub fn link_count(&self) -> usize {
+        self.links.len()
+    }
+
+    /// Return the number of nodes in the graph.
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
     }
 }
 
@@ -650,21 +633,24 @@ mod tests {
         let node_1_id = h.add_node("one", []).unwrap();
         let edge_id = h.add_edge([0], [1], "two", []).unwrap();
         assert_eq!(vec![2], edge_id);
-        assert_eq!(None, h.find_link_id([0], [1], &None, []));
-        assert_eq!(Some(vec![3]), h.find_link_id([0], [2], &None, []));
-        assert_eq!(Some(vec![4]), h.find_link_id([2], [1], &None, []));
+        assert_eq!(
+            Err(errors::FindError::NoLink),
+            h.find_link_id([0], [1], &None, [])
+        );
+        assert_eq!(Ok(vec![3]), h.find_link_id([0], [2], &None, []));
+        assert_eq!(Ok(vec![4]), h.find_link_id([2], [1], &None, []));
         assert!(h.contains_node(node_0_id));
         assert!(h.contains_node(node_1_id));
         assert_eq!(h.edge_value(&edge_id).unwrap(), &"two");
     }
 
     #[test_case(
-     {
-     	let mut h = Hypergraph::<_, ()>::new();
-     	h.add_node("zero", []).unwrap();
-     	h.add_link([0], [], (), [])
-     }, //
-     AddError::EmptyTarget; //
+    	{
+	     	let mut h = Hypergraph::<_, ()>::new();
+	     	h.add_node("zero", []).unwrap();
+	     	h.add_link([0], [], (), [])
+    	}, //
+    	errors::AddError::EmptyTarget(errors::EmptyTarget); //
     	"empty target"
     )]
     #[test_case(
@@ -675,7 +661,7 @@ mod tests {
 	    	h.add_hypergraph("zero", [0]).unwrap();
 	    	h.add_edge([0, 0], [0], (), [1])
 	    }, //
-	    AddError::IncoherentLink(vec![1], vec![0, 0], vec![0]); //
+	    errors::AddError::IncoherentLink(errors::IncoherentLink(vec![1], vec![0, 0], vec![0])); //
     	"incoherent link"
     )]
     #[test_case(
@@ -686,7 +672,7 @@ mod tests {
      	h.add_edge([0], [1], "two", []).unwrap();
      	h.add_link([3], [0], (), [])
      }, //
-     AddError::LinkSource(vec![3]); //
+     errors::AddError::LinkSource(errors::LinkSource(vec![3])); //
     	"link source"
     )]
     #[test_case(
@@ -697,7 +683,7 @@ mod tests {
      	h.add_edge([0], [1], "two", []).unwrap();
      	h.add_link([0], [3], (), [])
      }, //
-     AddError::LinkTarget(vec![3]); //
+     errors::AddError::LinkTarget(errors::LinkTarget(vec![3])); //
     	"link target"
     )]
     #[test_case(
@@ -705,7 +691,7 @@ mod tests {
 	    	let mut h = Hypergraph::<_, ()>::new();
 	    	h.add_node("zero", [1])
     	},//
-    	AddError::NoHypergraph(vec![1]); //
+    	errors::AddError::NoLocation(errors::NoHypergraph(vec![1])); //
     	"no hypergraph"
     )]
     #[test_case(
@@ -713,7 +699,7 @@ mod tests {
     		let mut h = Hypergraph::<(), (), (), _>::new();
     		h.add_link([1], [], "zero", [])
     	}, //
-    	AddError::NoSource(vec![1]); //
+    	errors::AddError::NoSource(errors::NoElementLinkable(vec![1])); //
     	"no source"
     )]
     #[test_case(
@@ -723,10 +709,10 @@ mod tests {
 	     	h.add_hypergraph("one", [0]).unwrap();
 	     	h.add_link([0, 0], [0], (), [])
 	    }, //
-	    AddError::Unlinkable(vec![0, 0], vec![0]); //
+	    errors::AddError::Unlinkable(errors::Unlinkable(vec![0, 0], vec![0])); //
     	"unlinkable"
     )]
-    fn add_error(result: Result<Vec<usize>, AddError>, expected: AddError) {
+    fn add_error(result: Result<Vec<usize>, errors::AddError>, expected: errors::AddError) {
         println!("add output: {:?}", result);
         assert_eq!(result.err().unwrap(), expected);
     }
@@ -1001,10 +987,18 @@ mod tests {
         h.add_link([0], [2], "five", []).unwrap();
         h.add_hypergraph("six", []).unwrap();
 
-        assert_eq!(h.remove([5]), true); // Ok(Some("five")));
-        assert_eq!(h.remove([2]), true); // Ok("two"));
-        assert_eq!(h.remove([0]), true); // Ok("zero"));
-        assert_eq!(h.remove([6]), true); // Ok(Some("six")));
+        assert_eq!(
+            h.remove([5]),
+            Ok(ElementValue::Link {
+                value: Some("five")
+            })
+        );
+        assert_eq!(h.remove([2]), Ok(ElementValue::Edge { value: "two" }));
+        assert_eq!(h.remove([0]), Ok(ElementValue::Node { value: "zero" }));
+        assert_eq!(
+            h.remove([6]),
+            Ok(ElementValue::Hypergraph { value: Some("six") })
+        );
 
         assert_eq!(h.ids().collect::<Vec<_>>(), vec![vec![], vec![1]]);
     }
@@ -1015,9 +1009,9 @@ mod tests {
         h.add_node("zero", []).unwrap();
         h.add_node("one", []).unwrap();
         h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.edge_value([2]), Some(&"two"));
-        assert_eq!(h.set_edge_value([2], "new_two"), Some("two"));
-        assert_eq!(h.edge_value([2]), Some(&"new_two"));
+        assert_eq!(h.edge_value([2]), Ok(&"two"));
+        assert_eq!(h.set_edge_value([2], "new_two"), Ok("two"));
+        assert_eq!(h.edge_value([2]), Ok(&"new_two"));
         assert_eq!(h.neighbors([2]).unwrap().next(), Some(&vec![1]));
     }
 
@@ -1027,9 +1021,9 @@ mod tests {
         h.add_hypergraph("zero", []).unwrap();
         h.add_node("one", []).unwrap();
         h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.hypergraph_value([0]), Some(&Some("zero")));
-        assert_eq!(h.set_hypergraph_value([0], "new_zero"), Some(Some("zero")));
-        assert_eq!(h.hypergraph_value([0]), Some(&Some("new_zero")));
+        assert_eq!(h.hypergraph_value([0]), Ok(&Some("zero")));
+        assert_eq!(h.set_hypergraph_value([0], "new_zero"), Ok(Some("zero")));
+        assert_eq!(h.hypergraph_value([0]), Ok(&Some("new_zero")));
         assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
     }
 
@@ -1039,9 +1033,9 @@ mod tests {
         h.add_node("zero", []).unwrap();
         h.add_node("one", []).unwrap();
         h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.link_value([3]), Some(&None));
-        assert_eq!(h.set_link_value([3], "new_three"), Some(None));
-        assert_eq!(h.link_value([3]), Some(&Some("new_three")));
+        assert_eq!(h.link_value([3]), Ok(&None));
+        assert_eq!(h.set_link_value([3], "new_three"), Ok(None));
+        assert_eq!(h.link_value([3]), Ok(&Some("new_three")));
     }
 
     #[test]
@@ -1050,10 +1044,10 @@ mod tests {
         h.add_node("zero", []).unwrap();
         h.add_node("one", []).unwrap();
         h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.node_value([0]), Some(&"zero"));
-        assert_eq!(h.set_node_value([0], "new_zero"), Some("zero"));
-        assert_eq!(h.node_value([0]), Some(&"new_zero"));
+        assert_eq!(h.node_value([0]), Ok(&"zero"));
+        assert_eq!(h.set_node_value([0], "new_zero"), Ok("zero"));
+        assert_eq!(h.node_value([0]), Ok(&"new_zero"));
         assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
-        assert_eq!(h.node_value([1]), Some(&"one"));
+        assert_eq!(h.node_value([1]), Ok(&"one"));
     }
 }

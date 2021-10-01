@@ -54,10 +54,16 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         }
         let source_element = self.element_value(&global_source_id).unwrap(); // Never fails since gloabl_source_id refers to a linkable element
         let source_element = match source_element {
-            ElementValue::Link { .. } => Err(errors::LinkSource(element.into_source().unwrap()))?,
+            ElementValue::Link { .. } => {
+                return Err(errors::AddError::LinkSource(errors::LinkSource(
+                    element.into_source().unwrap(),
+                )))
+            }
             ElementValue::Edge { .. } => {
                 if let ElementExt::Edge { source, target, .. } = element {
-                    Err(errors::Unlinkable(source, target))?
+                    return Err(errors::AddError::Unlinkable(errors::Unlinkable(
+                        source, target,
+                    )));
                     // Edge -> Edge can not be
                 }
                 source_element
@@ -78,10 +84,16 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         let target_element = self.element_value(&global_target_id).unwrap();
         match target_element {
             // Never fails since gloabl_target_id refers to a linkable element
-            ElementValue::Link { .. } => Err(errors::LinkTarget(element.into_target().unwrap()))?,
+            ElementValue::Link { .. } => {
+                return Err(errors::AddError::LinkTarget(errors::LinkTarget(
+                    element.into_target().unwrap(),
+                )))
+            }
             ElementValue::Edge { .. } => {
                 if let ElementExt::Edge { source, target, .. } = element {
-                    Err(errors::Unlinkable(source, target))?
+                    return Err(errors::AddError::Unlinkable(errors::Unlinkable(
+                        source, target,
+                    )));
                     // Edge -> Edge can not be
                 }
             }
@@ -91,7 +103,9 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         // Check that we are not linking edge with edge
         if source_element.is_edge() && target_element.is_edge() {
             if let ElementExt::Link { source, target, .. } = element {
-                Err(errors::Unlinkable(source, target))? // Edge -> Edge can not be
+                return Err(errors::AddError::Unlinkable(errors::Unlinkable(
+                    source, target,
+                ))); // Edge -> Edge can not be
             }
         }
         // Check that we are linking through an edge
@@ -100,7 +114,10 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
             && (target_element.is_node() || target_element.is_hypergraph())
         {
             if let ElementExt::Link { source, target, .. } = element {
-                Err(errors::Unlinkable(source, target))? // (node or h) -> (node or h) can not be
+                return Err(errors::AddError::Unlinkable(errors::Unlinkable(
+                    source, target,
+                )));
+                // (node or h) -> (node or h) can not be
             }
         }
         // Check coherence of location with respect to source and target
