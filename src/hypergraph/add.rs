@@ -47,58 +47,62 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
         if global_source_id.is_empty() {
             Err(errors::EmptySource)?
         }
-        if !self.contains_linkable(&global_source_id) {
-            return Err(errors::AddError::NoSource(errors::NoElementLinkable(
-                global_source_id.to_vec(),
-            )));
-        }
-        let source_element = self.element_value(&global_source_id).unwrap(); // Never fails since gloabl_source_id refers to a linkable element
-        let source_element = match source_element {
-            ElementValue::Link { .. } => {
-                return Err(errors::AddError::LinkSource(errors::LinkSource(
-                    element.into_source().unwrap(),
-                )))
+
+        let source_element = match self.element_value(&global_source_id) {
+            Err(_) => {
+                return Err(errors::AddError::NoSource(errors::NoElementLinkable(
+                    global_source_id.to_vec(),
+                )));
             }
-            ElementValue::Edge { .. } => {
-                if let ElementExt::Edge { source, target, .. } = element {
-                    return Err(errors::AddError::Unlinkable(errors::Unlinkable(
-                        source, target,
-                    )));
-                    // Edge -> Edge can not be
+            Ok(source_element) => match source_element {
+                ElementValue::Link { .. } => {
+                    return Err(errors::AddError::LinkSource(errors::LinkSource(
+                        element.into_source().unwrap(),
+                    )))
                 }
-                source_element
-            }
-            ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => source_element,
+                ElementValue::Edge { .. } => {
+                    if let ElementExt::Edge { source, target, .. } = element {
+                        return Err(errors::AddError::Unlinkable(errors::Unlinkable(
+                            source, target,
+                        )));
+                        // Edge -> Edge can not be
+                    }
+                    source_element
+                }
+                ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => source_element,
+            },
         };
-        // source_element is either node or hypergrpha. or edge only if element is a link
-        // Never fails since element is now either edge or link
+
         let global_target_id = element.target().unwrap();
         if global_target_id.is_empty() {
             Err(errors::EmptyTarget)?;
         }
-        if !self.contains_linkable(&global_target_id) {
-            return Err(errors::AddError::NoTarget(errors::NoElementLinkable(
-                global_target_id.to_vec(),
-            )));
-        }
-        let target_element = self.element_value(&global_target_id).unwrap();
-        match target_element {
-            // Never fails since gloabl_target_id refers to a linkable element
-            ElementValue::Link { .. } => {
-                return Err(errors::AddError::LinkTarget(errors::LinkTarget(
-                    element.into_target().unwrap(),
-                )))
+
+        let target_element = match self.element_value(&global_target_id) {
+            Err(_) => {
+                return Err(errors::AddError::NoSource(errors::NoElementLinkable(
+                    global_target_id.to_vec(),
+                )));
             }
-            ElementValue::Edge { .. } => {
-                if let ElementExt::Edge { source, target, .. } = element {
-                    return Err(errors::AddError::Unlinkable(errors::Unlinkable(
-                        source, target,
-                    )));
-                    // Edge -> Edge can not be
+            Ok(target_element) => match target_element {
+                ElementValue::Link { .. } => {
+                    return Err(errors::AddError::LinkTarget(errors::LinkTarget(
+                        element.into_target().unwrap(),
+                    )))
                 }
-            }
-            ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => (),
+                ElementValue::Edge { .. } => {
+                    if let ElementExt::Edge { source, target, .. } = element {
+                        return Err(errors::AddError::Unlinkable(errors::Unlinkable(
+                            source, target,
+                        )));
+                        // Edge -> Edge can not be
+                    }
+                    target_element
+                }
+                ElementValue::Node { .. } | ElementValue::Hypergraph { .. } => target_element,
+            },
         };
+
         // target_element is either node or hypergrpha, or edge only if element is a link
         // Check that we are not linking edge with edge
         if source_element.is_edge() && target_element.is_edge() {
@@ -339,5 +343,125 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
     ) -> Result<Vec<usize>, errors::AddError> {
         let element = ElementExt::Node { value };
         self.add_element(element, location)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test_case::test_case;
+
+    #[test]
+    fn add_edge() {
+        let mut h = Hypergraph::<&str, &str>::new();
+        let node_0_id = h.add_node("zero", []).unwrap();
+        let node_1_id = h.add_node("one", []).unwrap();
+        let edge_id = h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(vec![2], edge_id);
+        assert_eq!(
+            Err(errors::FindError::NoLink),
+            h.find_link_id([0], [1], &None, [])
+        );
+        assert_eq!(Ok(vec![3]), h.find_link_id([0], [2], &None, []));
+        assert_eq!(Ok(vec![4]), h.find_link_id([2], [1], &None, []));
+        assert!(h.contains_node(node_0_id));
+        assert!(h.contains_node(node_1_id));
+        assert_eq!(h.edge_value(&edge_id).unwrap(), &"two");
+    }
+
+    #[test_case(
+        {
+            let mut h = Hypergraph::<_, ()>::new();
+            h.add_node("zero", []).unwrap();
+            h.add_link([0], [], (), [])
+        }, //
+        errors::AddError::EmptyTarget(errors::EmptyTarget); //
+        "empty target"
+    )]
+    #[test_case(
+        {
+            let mut h = Hypergraph::<(), (), _>::new();
+            h.add_hypergraph("zero", []).unwrap();
+            h.add_hypergraph("one", []).unwrap();
+            h.add_hypergraph("zero", [0]).unwrap();
+            h.add_edge([0, 0], [0], (), [1])
+        }, //
+        errors::AddError::IncoherentLink(errors::IncoherentLink(vec![1], vec![0, 0], vec![0])); //
+        "incoherent link"
+    )]
+    #[test_case(
+     {
+        let mut h = Hypergraph::<_, _, ()>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([3], [0], (), [])
+     }, //
+     errors::AddError::LinkSource(errors::LinkSource(vec![3])); //
+        "link source"
+    )]
+    #[test_case(
+     {
+        let mut h = Hypergraph::<_, _, ()>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [3], (), [])
+     }, //
+     errors::AddError::LinkTarget(errors::LinkTarget(vec![3])); //
+        "link target"
+    )]
+    #[test_case(
+        {
+            let mut h = Hypergraph::<_, ()>::new();
+            h.add_node("zero", [1])
+        },//
+        errors::AddError::NoLocation(errors::NoHypergraph(vec![1])); //
+        "no hypergraph"
+    )]
+    #[test_case(
+        {
+            let mut h = Hypergraph::<(), (), (), _>::new();
+            h.add_link([1], [], "zero", [])
+        }, //
+        errors::AddError::NoSource(errors::NoElementLinkable(vec![1])); //
+        "no source"
+    )]
+    #[test_case(
+        {
+            let mut h = Hypergraph::<(), (), _>::new();
+            h.add_hypergraph("zero", []).unwrap();
+            h.add_hypergraph("one", [0]).unwrap();
+            h.add_link([0, 0], [0], (), [])
+        }, //
+        errors::AddError::Unlinkable(errors::Unlinkable(vec![0, 0], vec![0])); //
+        "unlinkable"
+    )]
+    fn add_error(result: Result<Vec<usize>, errors::AddError>, expected: errors::AddError) {
+        println!("add output: {:?}", result);
+        assert_eq!(result.err().unwrap(), expected);
+    }
+
+    #[test]
+    fn add_hypergraph() {
+        let mut h = Hypergraph::<u8, u8, _>::new();
+        let id = h.add_hypergraph("zero", []).unwrap();
+        assert_eq!(h.hypergraph_value(&id).unwrap(), &Some("zero"));
+    }
+
+    #[test]
+    fn add_link() {
+        let mut h = Hypergraph::<_, _, (), _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        let link_id = h.add_link([0], [2], "three", []).unwrap();
+        assert_eq!(h.link_value(link_id).unwrap(), &Some("three"));
+    }
+    #[test]
+    fn add_node() {
+        let mut h = Hypergraph::<_, u8>::new();
+        let id = h.add_node("zero", []).unwrap();
+        assert_eq!(h.node_value(id).unwrap(), &"zero");
     }
 }

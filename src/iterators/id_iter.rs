@@ -6,7 +6,7 @@ use crate::{walkers::IdWalk, Hypergraph};
 ///
 /// Created with [`.ids()`][1].
 ///
-/// [1]: struct.G\Hypergraph.html#method.ids
+/// [1]: ../../struct.Hypergraph.html#method.ids
 #[derive(Debug)]
 pub struct IdIter<'a, N, E, H, L, Ty> {
     hypergraph: &'a Hypergraph<N, E, H, L, Ty>,

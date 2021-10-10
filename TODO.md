@@ -1,19 +1,5 @@
 # TODO
 
-### Clear
-
-Repair clear methods (and add test) to remove the links that are thrown away.
-
-Rearrange tests
-
-## Hypergraph
-
-### Removal
-
-- remove_element_by_value
-  - Need comparison
-    - Use get::ids
-
 ### Getters
 
 - neighbors (iterator over ids)
@@ -22,18 +8,16 @@ Rearrange tests
   - 
 - neighbors_directed (iterator)
 - neighbors_directed_mut (iterator)
-- Ids (iterator)
+- [x] Ids (iterator)
+  - EdgeIds
+  - HypergraphIds
+  - LinkIds
+  - NodeIds
 - References (iterator)
 - References_mut (iterator)
 - externals
 
-### Walkers
-
-Check out [Walker](https://docs.rs/petgraph/0.6.0/petgraph/visit/trait.Walker.html) and [Walker trait](https://github.com/petgraph/petgraph/issues/13)
-
-This is to visit without borrowing from the data-structure.
-
-I propose to simply clone the ids (`Vec<ID>`).
+## Hypergraph
 
 ### Conversions
 
@@ -50,27 +34,6 @@ I propose to simply clone the ids (`Vec<ID>`).
 - into_graph(&self) -> petgraph::Graph<&Vec<usize>, &Vec<usize>>
 - into_hypergraph(&self) -> hypergraph::Hypegraph<&Vec<usize>, &Vec<usize>>
 
-### Optimizations
-
-- Shrink to fit
-
-### Index
-
-- Index
-- IndexMut
-- Vec<usize>
-
-### Filtering
-
-- filter_ref(&self) -> Hypergraph<&*>
-- filter_ref_mut(&mut self) -> Hypergraph<&mut *>
-- filter(self) -> Hypergraph<*>
-
-### Git
-
-- merge
-- [diff](https://github.com/petgraph/petgraph/issues/320)
-
 ### [Extend](https://doc.rust-lang.org/nightly/core/iter/trait.Extend.html)
 
 Increase your current hypergraph by other elements. 
@@ -81,10 +44,55 @@ Increase your current hypergraph by other elements.
 - extend_with_links()
 - extend_with_hypergraphs()
 
+### Filtering
+
+- filter_ref(&self) -> Hypergraph<&*>
+- filter_ref_mut(&mut self) -> Hypergraph<&mut *>
+- filter(self) -> Hypergraph<*>
+
+### Find
+
+- Needs (PartialEq)
+- Each method with different constrains
+- Better than with specific ids iterator (see Get)
+  - EdgeIds
+  - HypergraphIds
+  - LinkIds
+  - NodeIds
+
+### Git
+
+- merge
+- [diff](https://github.com/petgraph/petgraph/issues/320)
+
+### Index
+
+- Index
+- IndexMut
+- Vec<usize>
+
+### Optimizations
+
+- Shrink to fit
+
+### Removal
+
+- remove_element_by_value
+  - Need comparison
+    - Use get::ids
+
 ### Visualization
 
 - draw()
   Check out [petgraph_evcxr](https://docs.rs/petgraph-evcxr/0.2.0/src/petgraph_evcxr/lib.rs.html#23-45)
+
+### Walkers
+
+Check out [Walker](https://docs.rs/petgraph/0.6.0/petgraph/visit/trait.Walker.html) and [Walker trait](https://github.com/petgraph/petgraph/issues/13)
+
+This is to visit without borrowing from the data-structure.
+
+I propose to simply clone the ids (`Vec<ID>`).
 
 # Traits
 

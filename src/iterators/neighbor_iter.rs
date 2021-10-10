@@ -8,7 +8,7 @@ use crate::{errors, walkers::NeighborWalk, Direction, Hypergraph};
 ///
 /// Created with [`.neighbors()`][1].
 ///
-/// [1]: struct.G\Hypergraph.html#method.ids
+/// [1]: ../../struct.Hypergraph.html#method.neighbors
 #[derive(Debug, Clone)]
 pub struct NeighborIter<'a, N, E, H, L, Ty> {
     /// Reference to search neighbor values

@@ -43,7 +43,12 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         &self,
         value: ElementValue<&N, &E, &H, &L>,
     ) -> Result<Vec<usize>, errors::FindError> {
-        todo!()
+        match value {
+            ElementValue::Edge { value } => self.find_edge_by_value(value),
+            ElementValue::Hypergraph { value } => self.find_hypergraph_by_value(value),
+            ElementValue::Link { value } => self.find_link_by_value(value),
+            ElementValue::Node { value } => self.find_node_by_value(value),
+        }
     }
 
     pub fn find_node_by_value(&self, value: &N) -> Result<Vec<usize>, errors::FindError> {
@@ -54,13 +59,13 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         todo!()
     }
 
-    pub fn find_link_by_value(&self, value: &Option<L>) -> Result<Vec<usize>, errors::FindError> {
+    pub fn find_link_by_value(&self, value: Option<&L>) -> Result<Vec<usize>, errors::FindError> {
         todo!()
     }
 
     pub fn find_hypergraph_by_value(
         &self,
-        value: &Option<H>,
+        value: Option<&H>,
     ) -> Result<Vec<usize>, errors::FindError> {
         todo!()
     }

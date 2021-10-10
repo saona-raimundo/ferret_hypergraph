@@ -1,4 +1,4 @@
-use core::{fmt::Debug, mem};
+use core::fmt::Debug;
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +10,7 @@ mod clear;
 mod find;
 mod get;
 mod remove;
+mod set;
 
 pub use classes::{Main, Sub};
 
@@ -343,100 +344,6 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     }
 }
 
-/// # Set
-impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
-    pub fn set_edge_value(
-        &mut self,
-        id: impl AsRef<[usize]>,
-        mut new_value: E,
-    ) -> Result<E, errors::SetError> {
-        let id = id.as_ref();
-        if !self.contains_edge(id) {
-            Err(errors::NoEdge(id.to_vec()))?
-        }
-        let old_value = self.edge_value_mut(id).unwrap(); // Never fails since id refers to an edge
-        mem::swap(old_value, &mut new_value);
-        Ok(new_value)
-    }
-
-    pub fn set_element_value(
-        &mut self,
-        id: impl AsRef<[usize]>,
-        new_value: ElementValue<N, E, H, L>,
-    ) -> Result<ElementValue<N, E, H, L>, errors::SetError> {
-        match new_value {
-            ElementValue::Edge { value } => {
-                let old_value = self.set_edge_value(id, value)?;
-                Ok(ElementValue::Edge { value: old_value })
-            }
-            ElementValue::Hypergraph { value } => {
-                let old_value = self.set_hypergraph_value(id, value)?;
-                Ok(ElementValue::Hypergraph { value: old_value })
-            }
-            ElementValue::Link { value } => {
-                let old_value = self.set_link_value(id, value)?;
-                Ok(ElementValue::Link { value: old_value })
-            }
-            ElementValue::Node { value } => {
-                let old_value = self.set_node_value(id, value)?;
-                Ok(ElementValue::Node { value: old_value })
-            }
-        }
-    }
-
-    pub fn set_link_value(
-        &mut self,
-        id: impl AsRef<[usize]>,
-        new_value: impl Into<Option<L>>,
-    ) -> Result<Option<L>, errors::SetError> {
-        let id = id.as_ref();
-        let mut new_value = new_value.into();
-        if !self.contains_link(id) {
-            Err(errors::NoLink(id.to_vec()))?
-        }
-        let old_value = self.link_value_mut(id).unwrap(); // Never fails since id refers to a link
-        mem::swap(old_value, &mut new_value);
-        Ok(new_value)
-    }
-
-    pub fn set_hypergraph_value(
-        &mut self,
-        id: impl AsRef<[usize]>,
-        new_value: impl Into<Option<H>>,
-    ) -> Result<Option<H>, errors::SetError> {
-        let id = id.as_ref();
-        let mut new_value = new_value.into();
-        if !self.contains_hypergraph(id) {
-            Err(errors::NoHypergraph(id.to_vec()))?
-        }
-        let old_value = self.hypergraph_value_mut(id).unwrap(); // Never fails since id refers to a link
-        mem::swap(old_value, &mut new_value);
-        Ok(new_value)
-    }
-
-    pub fn set_node_value(
-        &mut self,
-        id: impl AsRef<[usize]>,
-        mut new_value: N,
-    ) -> Result<N, errors::SetError> {
-        let id = id.as_ref();
-        if !self.contains_hypergraph(id) {
-            Err(errors::NoNode(id.to_vec()))?
-        }
-        let old_value = self.node_value_mut(id).unwrap(); // Never fails since id refers to a link
-        mem::swap(old_value, &mut new_value);
-        Ok(new_value)
-    }
-
-    /// Change the value of the hypergraph as a whole.
-    pub fn set_value(&mut self, new_value: impl Into<Option<H>>) -> Option<H> {
-        let mut new_value = new_value.into();
-        let old_value = self.value_mut();
-        mem::swap(old_value, &mut new_value);
-        new_value
-    }
-}
-
 /// # Inform
 ///
 /// Various information about the hypergraph.
@@ -592,7 +499,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     /// let h = Hypergraph::<(), ()>::new();
     /// assert!(h.is_empty());
     /// ```
-    pub fn id_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.raw_nodes().is_empty() && self.raw_hypergraphs().is_empty()
     }
 
@@ -625,120 +532,6 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
 mod tests {
     use super::*;
     use test_case::test_case;
-
-    #[test]
-    fn add_edge() {
-        let mut h = Hypergraph::<&str, &str>::new();
-        let node_0_id = h.add_node("zero", []).unwrap();
-        let node_1_id = h.add_node("one", []).unwrap();
-        let edge_id = h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(vec![2], edge_id);
-        assert_eq!(
-            Err(errors::FindError::NoLink),
-            h.find_link_id([0], [1], &None, [])
-        );
-        assert_eq!(Ok(vec![3]), h.find_link_id([0], [2], &None, []));
-        assert_eq!(Ok(vec![4]), h.find_link_id([2], [1], &None, []));
-        assert!(h.contains_node(node_0_id));
-        assert!(h.contains_node(node_1_id));
-        assert_eq!(h.edge_value(&edge_id).unwrap(), &"two");
-    }
-
-    #[test_case(
-    	{
-	     	let mut h = Hypergraph::<_, ()>::new();
-	     	h.add_node("zero", []).unwrap();
-	     	h.add_link([0], [], (), [])
-    	}, //
-    	errors::AddError::EmptyTarget(errors::EmptyTarget); //
-    	"empty target"
-    )]
-    #[test_case(
-	    {
-	    	let mut h = Hypergraph::<(), (), _>::new();
-	    	h.add_hypergraph("zero", []).unwrap();
-	    	h.add_hypergraph("one", []).unwrap();
-	    	h.add_hypergraph("zero", [0]).unwrap();
-	    	h.add_edge([0, 0], [0], (), [1])
-	    }, //
-	    errors::AddError::IncoherentLink(errors::IncoherentLink(vec![1], vec![0, 0], vec![0])); //
-    	"incoherent link"
-    )]
-    #[test_case(
-     {
-     	let mut h = Hypergraph::<_, _, ()>::new();
-     	h.add_node("zero", []).unwrap();
-     	h.add_node("one", []).unwrap();
-     	h.add_edge([0], [1], "two", []).unwrap();
-     	h.add_link([3], [0], (), [])
-     }, //
-     errors::AddError::LinkSource(errors::LinkSource(vec![3])); //
-    	"link source"
-    )]
-    #[test_case(
-     {
-     	let mut h = Hypergraph::<_, _, ()>::new();
-     	h.add_node("zero", []).unwrap();
-     	h.add_node("one", []).unwrap();
-     	h.add_edge([0], [1], "two", []).unwrap();
-     	h.add_link([0], [3], (), [])
-     }, //
-     errors::AddError::LinkTarget(errors::LinkTarget(vec![3])); //
-    	"link target"
-    )]
-    #[test_case(
-    	{
-	    	let mut h = Hypergraph::<_, ()>::new();
-	    	h.add_node("zero", [1])
-    	},//
-    	errors::AddError::NoLocation(errors::NoHypergraph(vec![1])); //
-    	"no hypergraph"
-    )]
-    #[test_case(
-    	{
-    		let mut h = Hypergraph::<(), (), (), _>::new();
-    		h.add_link([1], [], "zero", [])
-    	}, //
-    	errors::AddError::NoSource(errors::NoElementLinkable(vec![1])); //
-    	"no source"
-    )]
-    #[test_case(
-	    {
-	     	let mut h = Hypergraph::<(), (), _>::new();
-	     	h.add_hypergraph("zero", []).unwrap();
-	     	h.add_hypergraph("one", [0]).unwrap();
-	     	h.add_link([0, 0], [0], (), [])
-	    }, //
-	    errors::AddError::Unlinkable(errors::Unlinkable(vec![0, 0], vec![0])); //
-    	"unlinkable"
-    )]
-    fn add_error(result: Result<Vec<usize>, errors::AddError>, expected: errors::AddError) {
-        println!("add output: {:?}", result);
-        assert_eq!(result.err().unwrap(), expected);
-    }
-
-    #[test]
-    fn add_hypergraph() {
-        let mut h = Hypergraph::<u8, u8, _>::new();
-        let id = h.add_hypergraph("zero", []).unwrap();
-        assert_eq!(h.hypergraph_value(&id).unwrap(), &Some("zero"));
-    }
-
-    #[test]
-    fn add_link() {
-        let mut h = Hypergraph::<_, _, (), _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        let link_id = h.add_link([0], [2], "three", []).unwrap();
-        assert_eq!(h.link_value(link_id).unwrap(), &Some("three"));
-    }
-    #[test]
-    fn add_node() {
-        let mut h = Hypergraph::<_, u8>::new();
-        let id = h.add_node("zero", []).unwrap();
-        assert_eq!(h.node_value(id).unwrap(), &"zero");
-    }
 
     #[test_case(Hypergraph::<u8, u8>::new(), Main; "Main")]
     #[test_case(Hypergraph::<u8, u8, u8, u8, Sub>::new(), Sub; "Sub")]
@@ -976,78 +769,5 @@ mod tests {
         h.add_node("one", []).unwrap();
         assert_eq!(h.node_value([0]).unwrap(), &"zero");
         assert_eq!(h.node_value([1]).unwrap(), &"one");
-    }
-
-    #[test]
-    fn remove() {
-        let mut h = Hypergraph::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        h.add_link([0], [2], "five", []).unwrap();
-        h.add_hypergraph("six", []).unwrap();
-
-        assert_eq!(
-            h.remove([5]),
-            Ok(ElementValue::Link {
-                value: Some("five")
-            })
-        );
-        assert_eq!(h.remove([2]), Ok(ElementValue::Edge { value: "two" }));
-        assert_eq!(h.remove([0]), Ok(ElementValue::Node { value: "zero" }));
-        assert_eq!(
-            h.remove([6]),
-            Ok(ElementValue::Hypergraph { value: Some("six") })
-        );
-
-        assert_eq!(h.ids().collect::<Vec<_>>(), vec![vec![], vec![1]]);
-    }
-
-    #[test]
-    fn set_edge_value() {
-        let mut h = Hypergraph::<_, _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.edge_value([2]), Ok(&"two"));
-        assert_eq!(h.set_edge_value([2], "new_two"), Ok("two"));
-        assert_eq!(h.edge_value([2]), Ok(&"new_two"));
-        assert_eq!(h.neighbors([2]).unwrap().next(), Some(&vec![1]));
-    }
-
-    #[test]
-    fn set_hypergraph_value() {
-        let mut h = Hypergraph::<_, _, _>::new();
-        h.add_hypergraph("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.hypergraph_value([0]), Ok(&Some("zero")));
-        assert_eq!(h.set_hypergraph_value([0], "new_zero"), Ok(Some("zero")));
-        assert_eq!(h.hypergraph_value([0]), Ok(&Some("new_zero")));
-        assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
-    }
-
-    #[test]
-    fn set_link_value() {
-        let mut h = Hypergraph::<_, _, (), _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.link_value([3]), Ok(&None));
-        assert_eq!(h.set_link_value([3], "new_three"), Ok(None));
-        assert_eq!(h.link_value([3]), Ok(&Some("new_three")));
-    }
-
-    #[test]
-    fn set_node_value() {
-        let mut h = Hypergraph::<_, _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        assert_eq!(h.node_value([0]), Ok(&"zero"));
-        assert_eq!(h.set_node_value([0], "new_zero"), Ok("zero"));
-        assert_eq!(h.node_value([0]), Ok(&"new_zero"));
-        assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
-        assert_eq!(h.node_value([1]), Ok(&"one"));
     }
 }
