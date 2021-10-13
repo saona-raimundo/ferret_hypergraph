@@ -11,6 +11,7 @@ mod find;
 mod get;
 mod remove;
 mod set;
+mod visualize;
 
 pub use classes::{Main, Sub};
 
@@ -56,6 +57,7 @@ pub use classes::{Main, Sub};
 /// - [`Optimization`](#optimization)
 /// - [`Remove`](#remove)
 /// - [`Set`](#set)
+/// - [`Visualize`](#visualize)
 //
 // # Note
 //

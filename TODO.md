@@ -1,22 +1,5 @@
 # TODO
 
-### Getters
-
-- neighbors (iterator over ids)
-  - NeighborWalk
-- neighbors_mut (iterator)
-  - 
-- neighbors_directed (iterator)
-- neighbors_directed_mut (iterator)
-- [x] Ids (iterator)
-  - EdgeIds
-  - HypergraphIds
-  - LinkIds
-  - NodeIds
-- References (iterator)
-- References_mut (iterator)
-- externals
-
 ## Hypergraph
 
 ### Conversions
@@ -60,6 +43,23 @@ Increase your current hypergraph by other elements.
   - LinkIds
   - NodeIds
 
+### Getters
+
+- neighbors (iterator over ids)
+  - NeighborWalk
+- neighbors_mut (iterator)
+  - 
+- neighbors_directed (iterator)
+- neighbors_directed_mut (iterator)
+- [x] Ids (iterator)
+  - EdgeIds
+  - HypergraphIds
+  - LinkIds
+  - NodeIds
+- References (iterator)
+- References_mut (iterator)
+- externals
+
 ### Git
 
 - merge
@@ -81,10 +81,12 @@ Increase your current hypergraph by other elements.
   - Need comparison
     - Use get::ids
 
-### Visualization
+### Visualize
 
 - draw()
-  Check out [petgraph_evcxr](https://docs.rs/petgraph-evcxr/0.2.0/src/petgraph_evcxr/lib.rs.html#23-45)
+  - Check out [petgraph_evcxr](https://docs.rs/petgraph-evcxr/0.2.0/src/petgraph_evcxr/lib.rs.html#23-45)
+  - Highly unsafe
+  - Needs graphviz installed
 
 ### Walkers
 

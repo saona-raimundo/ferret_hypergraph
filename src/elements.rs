@@ -1,4 +1,4 @@
-use core::convert::TryFrom;
+use core::{convert::TryFrom, fmt};
 use serde::{Deserialize, Serialize};
 
 use crate::errors::LinkPresent;
@@ -13,6 +13,43 @@ pub enum ElementValue<N, E, H, L> {
     Link { value: Option<L> },
     /// A graph node.
     Node { value: N },
+}
+
+impl<N, E, H, L> fmt::Display for ElementValue<N, E, H, L>
+where
+    N: fmt::Display,
+    E: fmt::Display,
+    H: fmt::Display,
+    L: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            ElementValue::Edge { value } => {
+                write!(f, "{}", value)
+            }
+            ElementValue::Node { value } => {
+                write!(f, "{}", value)
+            }
+            ElementValue::Hypergraph {
+                value: value_option,
+            } => {
+                if let Some(value) = value_option {
+                    write!(f, "{}", value)
+                } else {
+                    write!(f, "")
+                }
+            }
+            ElementValue::Link {
+                value: value_option,
+            } => {
+                if let Some(value) = value_option {
+                    write!(f, "{}", value)
+                } else {
+                    write!(f, "")
+                }
+            }
+        }
+    }
 }
 
 impl<N, E, H, L> ElementValue<N, E, H, L> {

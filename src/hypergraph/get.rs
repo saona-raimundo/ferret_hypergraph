@@ -17,6 +17,11 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         &self.class
     }
 
+    // /// Returns an iterator over all valid edge ids.
+    // pub fn edge_ids<'a>(&'a self) -> EdgeIdIter<'a, N, E, H, L, Ty> {
+    //     EdgeIdIter::new(&self)
+    // }
+
     pub fn edge_value(&self, id: impl AsRef<[usize]>) -> Result<&E, errors::GetError> {
         let id = id.as_ref();
         if !self.contains_edge(&id) {
