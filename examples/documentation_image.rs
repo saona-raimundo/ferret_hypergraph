@@ -1,3 +1,5 @@
+use std::fs;
+
 use ferret_hypergraph::{visualize::DotFormatter, Hypergraph};
 
 fn main() -> anyhow::Result<()> {
@@ -19,10 +21,19 @@ fn main() -> anyhow::Result<()> {
     h.set_link_value([7, 4], "link")?;
 
     h.add_link([2], [7, 0], "link", [])?;
+    h.add_link([2], [7], "link", [])?;
 
     // Visualize
     println!("{}", h.as_dot(None));
-    h.draw_and_show(DotFormatter::display(), "hypergraph_concept")?;
+    h.show(DotFormatter::display(), "hypergraph_concept")?
+        .wait()?;
+
+    // Copy to documenation folder
+    fs::create_dir_all("images")?;
+    fs::copy(
+        "target/ferret_hypergraph/png/hypergraph_concept.png",
+        "images/hypergraph_concept.png",
+    )?;
 
     Ok(())
 }

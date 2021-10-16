@@ -81,16 +81,6 @@ Increase your current hypergraph by other elements.
   - Need comparison
     - Use get::ids
 
-### Visualize
-
-- draw(name: impl Display)
-  - [x] Check out [petgraph_evcxr](https://docs.rs/petgraph-evcxr/0.2.0/src/petgraph_evcxr/lib.rs.html#23-45)
-  - [x] Highly unsafe
-  - [x] Needs graphviz installed
-  - [ ] Make files only under target directory!
-  - Put an image in the documentation
-    - See [embed_doc_image](https://docs.rs/embed-doc-image/0.1.4/embed_doc_image/)
-
 ### Walkers
 
 Check out [Walker](https://docs.rs/petgraph/0.6.0/petgraph/visit/trait.Walker.html) and [Walker trait](https://github.com/petgraph/petgraph/issues/13)

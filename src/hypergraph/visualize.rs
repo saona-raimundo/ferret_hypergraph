@@ -148,14 +148,24 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
         } else if self.class().is_sub() {
             dot += &format!("subgraph \"cluster_{:?}\" ", pre_id) // shows as cluster, if supported
         }
-        dot.push_str("{\n");
+        dot.push_str("{\n\tcompound = true;\n");
         // Hypergraph value
-        if let Some(formatter) = formatter_option {
-            dot += &format!(
-                "\tlabel = \"{}\";\n",
-                (formatter.hypergraph)(&pre_id, self.value())
-            );
+        match formatter_option {
+            Some(formatter) => {
+                dot += &format!(
+                    "\tlabel = \"{}\";\n",
+                    (formatter.hypergraph)(&pre_id, self.value())
+                );
+            }
+            None => {
+                dot += &format!("\tlabel = \"{:?}\";\n", pre_id);
+            }
         }
+        // Invisible node to refer to the hypergraph in edges
+        dot += &format!(
+            "\t\"{:?}\" [label = \"\", height = 0, width = 0, style = invisible];\n",
+            pre_id
+        );
 
         // Nodes
         let raw_nodes = self.raw_nodes();
@@ -191,9 +201,20 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
                 None => format!("{:?}", id),
                 Some(formatter) => (formatter.link)(&id, &link_full.0),
             };
+            let mut atributes = String::new();
+            atributes += &format!("label = \"{}\"", label);
+            // Recall: Links in a hypergraph can only refer to elements inside that hypergraph.
+            let local_source: Vec<_> = link_full.1.clone().into_iter().skip(pre_id.len()).collect();
+            if self.contains_subhypergraph(&local_source) {
+                atributes += &format!(", ltail = \"cluster_{:?}\"", link_full.1);
+            }
+            let local_target: Vec<_> = link_full.2.clone().into_iter().skip(pre_id.len()).collect();
+            if self.contains_subhypergraph(&local_target) {
+                atributes += &format!(", lhead = \"cluster_{:?}\"", link_full.2);
+            }
             dot += &format!(
-                "\t\"{:?}\" -> \"{:?}\" [label=\"{}\"];\n",
-                &link_full.1, &link_full.2, label
+                "\t\"{:?}\" -> \"{:?}\" [{}];\n",
+                &link_full.1, &link_full.2, atributes
             );
         }
 
@@ -225,13 +246,14 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     ///
     /// As this calls an external command (`dot`), there is no safety guarantee.
     ///
-    /// [`dot`]: https://graphviz.org/doc/info/lang.html
+    /// [`dot`]: https://graphviz.org/doc/info/command.html
     /// [`Graphviz`]: https://graphviz.org/
-    pub fn draw<F>(&self, formatter: F, file_name: impl Display) -> io::Result<()>
+    pub fn draw<F>(&self, formatter: F, file_name: impl Display) -> io::Result<process::Child>
     where
         F: Into<Option<DotFormatter<N, E, H, L>>>,
     {
-        let dot_path = format!("{}.dot", file_name);
+        fs::create_dir_all("target/ferret_hypergraph/dot/")?;
+        let dot_path = format!("target/ferret_hypergraph/dot/{}.dot", file_name);
         let mut dot_file = fs::OpenOptions::new()
             .create(true)
             .write(true)
@@ -239,14 +261,18 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
             .open(&dot_path)?;
         write!(dot_file, "{}", self.as_dot(formatter))?;
 
-        process::Command::new("dot")
+        fs::create_dir_all("target/ferret_hypergraph/svg/")?;
+        let child = process::Command::new("dot")
             .arg("-Tsvg")
             .arg(&dot_path)
-            .args(&["-o", &format!("{}.svg", file_name)])
+            .args(&[
+                "-o",
+                &format!("target/ferret_hypergraph/svg/{}.svg", file_name),
+            ])
             .spawn()
             .expect("failed running graphviz dot. Is graphviz installed?");
 
-        Ok(())
+        Ok(child)
     }
 
     /// On top of applying the [`draw`] method, it (asynchroniously) renders the svg file into a png file
@@ -261,26 +287,87 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     ///
     /// # Safety
     ///
-    /// As this calls an external command ([`dot`]). There is no safety guarantee.
+    /// This calls an external commands ([`resvg`] and [`emulsion`]). There is no safety guarantee.
     ///
     /// [`resvg`]: https://crates.io/crates/resvg
     /// [`emulsion`]: https://github.com/ArturKovacs/emulsion
-    pub fn draw_and_show<F>(&self, formatter: F, file_name: impl Display) -> io::Result<()>
+    pub fn draw_and_show<F>(
+        &self,
+        formatter: F,
+        file_name: impl Display,
+    ) -> io::Result<process::Child>
     where
         F: Into<Option<DotFormatter<N, E, H, L>>>,
     {
-        self.draw(formatter, &file_name)?;
+        self.draw(formatter, &file_name)?
+            .wait()
+            .expect("dot failed to run.");
+        fs::create_dir_all("target/ferret_hypergraph/svg/")?;
+        fs::create_dir_all("target/ferret_hypergraph/png/")?;
+
         process::Command::new("resvg")
-            .arg(&format!("{}.svg", file_name))
-            .arg(&format!("{}.png", file_name))
+            .arg(&format!("target/ferret_hypergraph/svg/{}.svg", file_name))
+            .arg(&format!("target/ferret_hypergraph/png/{}.png", file_name))
             .spawn()
-            .expect("failed running resvg to transform svg to png format. Is resvg installed?");
-        process::Command::new("emulsion")
-            .arg(&format!("{}.png", file_name))
+            .expect("failed running resvg to transform svg to png format. Is resvg installed?")
+            .wait()
+            .expect("resvg failed to run.");
+
+        let child = process::Command::new("emulsion")
+            .arg(&format!("target/ferret_hypergraph/png/{}.png", file_name))
             .spawn()
             .expect("failed running emulsion to open png. Is emulsion installed?");
 
-        Ok(())
+        Ok(child)
+    }
+
+    /// Renders the hypergraph as a png (using [`dot`])
+    /// and opens it (using [`emulsion`]) for quick inspection.
+    ///
+    /// This is the fastest way to visualize a hypergraph.
+    ///
+    /// This is just a shorthand for running the commands [`dot`] to generate a png file and open it with [`emulsion`].
+    ///
+    /// # Requirements
+    ///
+    /// - [`dot`] needs to be install in your system.
+    /// - [`emulsion`] needs to be install in your system.
+    ///
+    /// # Safety
+    ///
+    /// As this calls external commands, here is no safety guarantee.
+    ///
+    /// [`dot`]: https://graphviz.org/doc/info/command.html
+    /// [`emulsion`]: https://github.com/ArturKovacs/emulsion
+    pub fn show<F>(&self, formatter: F, file_name: impl Display) -> io::Result<process::Child>
+    where
+        F: Into<Option<DotFormatter<N, E, H, L>>>,
+    {
+        fs::create_dir_all("target/ferret_hypergraph/png/")?;
+
+        let mut child = process::Command::new("dot")
+            .arg("-Tpng")
+            .stdin(process::Stdio::piped())
+            .args(&[
+                "-o",
+                &format!("target/ferret_hypergraph/png/{}.png", file_name),
+            ])
+            .spawn()
+            .expect("failed running graphviz dot. Is graphviz installed?");
+
+        child
+	        .stdin
+	        .as_mut()
+	        .unwrap()
+	        .write(self.as_dot(formatter).as_bytes())
+	        .expect("Writing failed in child process. We could not pass the dot representation of the hypergraph to dot.");
+
+        let child = process::Command::new("emulsion")
+            .arg(&format!("target/ferret_hypergraph/png/{}.png", file_name))
+            .spawn()
+            .expect("failed running emulsion to open png. Is emulsion installed?");
+
+        Ok(child)
     }
 }
 

@@ -1,6 +1,14 @@
 //! Hypergraphs data structure library.
 //!
 //! This library provides the [`Hypergraph`] struct.
+//!
+#![cfg_attr(
+	all(),
+	doc = ::embed_doc_image::embed_image!("hypergraph_concept", "images/hypergraph_concept.png")
+)]
+//!
+//! ![Image of a hypergraph and its elements][hypergraph_concept]
+//!
 //! # Features
 //!
 //! - Hyper graph: Edges can connect more than two nodes.

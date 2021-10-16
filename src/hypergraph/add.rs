@@ -18,14 +18,8 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
     /// If any `id` provided (`location` or within `element`) does not correspond to an element of the hypergraph,
     /// or if `element` is a connection (edge or link) and `source` or `target` can not be connected through `elmenet`.
     ///
-    /// Also, if element is an edge or a link, `location` must be coherent with the pair `(source, target)`.
-    /// This prevents to have links in locations unrelated to `source` or `target`.
-    /// To be coherent means satisfying one of the following rules:
-    ///  - `source` and `target` are in the same hypergraph with `id` `location`.
-    ///  - `source` and `target` are in hypergraphs which are nested,
-    /// and `location` refers to to either one of these hypergraphs or another hypergraph that contains both of them.
-    ///  -  `source` and `target` are in nonintersecting hypergraphs,
-    /// and `location` refers to a hypergraph that contains both of them.
+    /// Also, if element is an edge or a link, `location` must be coherent with the pair `(source, target)`,
+    /// meaning that it must refer to a hypergraph that contains both `source` and `target`.
     //
     // # Note
     //
@@ -125,8 +119,6 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
             }
         }
         // Check coherence of location with respect to source and target
-        let source_hypergraph_id = &global_source_id[0..global_source_id.len() - 1];
-        let target_hypergraph_id = &global_target_id[0..global_target_id.len() - 1];
         fn contains_or_equals(one: &[usize], other: &[usize]) -> bool {
             if one.len() <= other.len() {
                 one == &other[0..one.len()]
@@ -134,26 +126,9 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
                 false
             }
         }
-        fn are_strictly_nested(one: &[usize], other: &[usize]) -> bool {
-            if one.len() < other.len() {
-                one == &other[0..one.len()]
-            } else {
-                &one[0..other.len()] == other
-            }
-        }
-        // let location = location.to_vec();
-        let coherent_rule_same_hypergraph =
-            (source_hypergraph_id == target_hypergraph_id) && (source_hypergraph_id == location);
-        let coherent_rule_nested = are_strictly_nested(source_hypergraph_id, target_hypergraph_id)
-            && ((location == source_hypergraph_id)
-                || (location == target_hypergraph_id)
-                || (contains_or_equals(location, source_hypergraph_id)
-                    && contains_or_equals(location, target_hypergraph_id)));
-        let coherent_rule_nonintersecting = contains_or_equals(location, source_hypergraph_id)
-            && contains_or_equals(location, target_hypergraph_id);
-
-        if !(coherent_rule_same_hypergraph || coherent_rule_nested || coherent_rule_nonintersecting)
-        {
+        let coherent_rule = contains_or_equals(location, &global_source_id)
+            && contains_or_equals(location, &global_target_id);
+        if !coherent_rule {
             Err(errors::IncoherentLink(
                 location.to_vec(),
                 global_source_id.clone(),
