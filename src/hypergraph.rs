@@ -11,7 +11,7 @@ mod find;
 mod get;
 mod remove;
 mod set;
-mod visualize;
+pub mod visualize;
 
 pub use classes::{Main, Sub};
 

@@ -1,5 +1,5 @@
-use core::fmt::Display;
-use std::rc::Rc;
+use core::fmt::{Debug, Display};
+use std::{fs, io, io::Write, process, rc::Rc};
 
 use crate::{traits::HypergraphClass, Hypergraph};
 
@@ -10,6 +10,120 @@ pub struct DotFormatter<N, E, H, L> {
     pub link: Rc<dyn Fn(&Vec<usize>, &Option<L>) -> String>,
 }
 
+impl<N, E, H, L> DotFormatter<N, E, H, L> {
+    /// Creates a new `DotFormatter` that forwards the `Debug` implementation in all fields
+    ///
+    /// Values `None` are left blank.
+    pub fn debug() -> Self
+    where
+        N: Debug,
+        E: Debug,
+        H: Debug,
+        L: Debug,
+    {
+        let mut dotformatter = Self::new();
+        dotformatter
+            .set_edge(|_, edge| format!("{:?}", edge))
+            .set_hypergraph(|_, hypergraph_option| {
+                if let Some(hypergraph) = hypergraph_option {
+                    format!("{:?}", hypergraph)
+                } else {
+                    String::new()
+                }
+            })
+            .set_link(|_, link_option| {
+                if let Some(link) = link_option {
+                    format!("{:?}", link)
+                } else {
+                    String::new()
+                }
+            })
+            .set_node(|_, node| format!("{:?}", node));
+        dotformatter
+    }
+
+    /// Creates a new `DotFormatter` that forwards the `Display` implementation in all fields.
+    ///
+    /// Values `None` are left blank.
+    pub fn display() -> Self
+    where
+        N: Display,
+        E: Display,
+        H: Display,
+        L: Display,
+    {
+        let mut dotformatter = Self::new();
+        dotformatter
+            .set_edge(|_, edge| format!("{}", edge))
+            .set_hypergraph(|_, hypergraph_option| {
+                if let Some(hypergraph) = hypergraph_option {
+                    format!("{}", hypergraph)
+                } else {
+                    String::new()
+                }
+            })
+            .set_link(|_, link_option| {
+                if let Some(link) = link_option {
+                    format!("{}", link)
+                } else {
+                    String::new()
+                }
+            })
+            .set_node(|_, node| format!("{}", node));
+        dotformatter
+    }
+
+    /// Creates a new `DotFormatter` with default settings.
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn set_edge<F: 'static + Fn(&Vec<usize>, &E) -> String>(
+        &mut self,
+        edge_formatter: F,
+    ) -> &mut Self {
+        self.edge = Rc::new(edge_formatter);
+        self
+    }
+
+    pub fn set_hypergraph<F: 'static + Fn(&Vec<usize>, &Option<H>) -> String>(
+        &mut self,
+        hypergraph_formatter: F,
+    ) -> &mut Self {
+        self.hypergraph = Rc::new(hypergraph_formatter);
+        self
+    }
+
+    pub fn set_link<F: 'static + Fn(&Vec<usize>, &Option<L>) -> String>(
+        &mut self,
+        link_formatter: F,
+    ) -> &mut Self {
+        self.link = Rc::new(link_formatter);
+        self
+    }
+
+    pub fn set_node<F: 'static + Fn(&Vec<usize>, &N) -> String>(
+        &mut self,
+        node_formatter: F,
+    ) -> &mut Self {
+        self.node = Rc::new(node_formatter);
+        self
+    }
+}
+
+impl<N, E, H, L> Default for DotFormatter<N, E, H, L> {
+    /// Creates a new `DotFormatter`.
+    ///
+    /// The label of every element is its `id`.
+    fn default() -> Self {
+        DotFormatter {
+            edge: Rc::new(|id, _| format!("{:?}", id)),
+            node: Rc::new(|id, _| format!("{:?}", id)),
+            hypergraph: Rc::new(|id, _| format!("{:?}", id)),
+            link: Rc::new(|id, _| format!("{:?}", id)),
+        }
+    }
+}
+
 /// # Visualize
 ///
 /// Visualize hypergraphs.
@@ -17,7 +131,10 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     /// Transforms into a [dot language](https://graphviz.org/doc/info/lang.html) representation, from Graphviz.
     ///
     /// Hyperedges are represented as nodes without borders.
-    pub fn as_dot(&self, formatter: impl Into<Option<DotFormatter<N, E, H, L>>>) -> String {
+    pub fn as_dot<F>(&self, formatter: F) -> String
+    where
+        F: Into<Option<DotFormatter<N, E, H, L>>>,
+    {
         self.as_dot_impl(vec![], &formatter.into())
     }
     fn as_dot_impl(
@@ -27,9 +144,9 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     ) -> String {
         let mut dot = String::new();
         if self.class().is_main() {
-            dot.push_str("strict digraph ")
+            dot.push_str("strict digraph \"[]\" ")
         } else if self.class().is_sub() {
-            dot.push_str("subgraph cluster ") // shows as cluster, if supported
+            dot += &format!("subgraph \"cluster_{:?}\" ", pre_id) // shows as cluster, if supported
         }
         dot.push_str("{\n");
         // Hypergraph value
@@ -92,6 +209,79 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
         dot.push_str("}\n");
         dot
     }
+
+    /// Saves the output of [`as_dot`] and draws and saves the graph as a svg file.
+    ///
+    /// The files are named through `file_name`.
+    ///
+    /// This is just a shorthand for running the command [`dot`] of Graphviz in the result of the [`as_dot`] method
+    /// and saving all files.
+    ///
+    /// # Requirements
+    ///
+    /// [`Graphviz`] needs to be install in your system. In particular, [`dot`] must be a command accessible from PATH.
+    ///
+    /// # Safety
+    ///
+    /// As this calls an external command (`dot`), there is no safety guarantee.
+    ///
+    /// [`dot`]: https://graphviz.org/doc/info/lang.html
+    /// [`Graphviz`]: https://graphviz.org/
+    pub fn draw<F>(&self, formatter: F, file_name: impl Display) -> io::Result<()>
+    where
+        F: Into<Option<DotFormatter<N, E, H, L>>>,
+    {
+        let dot_path = format!("{}.dot", file_name);
+        let mut dot_file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&dot_path)?;
+        write!(dot_file, "{}", self.as_dot(formatter))?;
+
+        process::Command::new("dot")
+            .arg("-Tsvg")
+            .arg(&dot_path)
+            .args(&["-o", &format!("{}.svg", file_name)])
+            .spawn()
+            .expect("failed running graphviz dot. Is graphviz installed?");
+
+        Ok(())
+    }
+
+    /// On top of applying the [`draw`] method, it (asynchroniously) renders the svg file into a png file
+    /// and opens it (using [`emulsion`]) for quick inspection.
+    ///
+    /// This is just a shorthand for running the method [`draw`], then commands [`resvg`] and [`emulsion`].
+    ///
+    /// # Requirements
+    ///
+    /// - [`resvg`] needs to be install in your system.
+    /// - [`emulsion`] needs to be install in your system.
+    ///
+    /// # Safety
+    ///
+    /// As this calls an external command ([`dot`]). There is no safety guarantee.
+    ///
+    /// [`resvg`]: https://crates.io/crates/resvg
+    /// [`emulsion`]: https://github.com/ArturKovacs/emulsion
+    pub fn draw_and_show<F>(&self, formatter: F, file_name: impl Display) -> io::Result<()>
+    where
+        F: Into<Option<DotFormatter<N, E, H, L>>>,
+    {
+        self.draw(formatter, &file_name)?;
+        process::Command::new("resvg")
+            .arg(&format!("{}.svg", file_name))
+            .arg(&format!("{}.png", file_name))
+            .spawn()
+            .expect("failed running resvg to transform svg to png format. Is resvg installed?");
+        process::Command::new("emulsion")
+            .arg(&format!("{}.png", file_name))
+            .spawn()
+            .expect("failed running emulsion to open png. Is emulsion installed?");
+
+        Ok(())
+    }
 }
 
 impl<'a, N, E, H, L, Ty> Into<tabbycat::Graph<'a>> for &'a Hypergraph<N, E, H, L, Ty>
@@ -121,32 +311,35 @@ mod tests {
         h.add_hypergraph("twelve", [5]).unwrap();
         h.add_node("thirteen", [5, 5]).unwrap();
 
-        let formatter = DotFormatter {
-            edge: Rc::new(|_, e: &&str| e.to_string()),
-            node: Rc::new(|_, n: &&str| n.to_string()),
-            hypergraph: Rc::new(|_, h: &Option<&str>| match h {
+        let mut formatter = DotFormatter::new();
+        formatter
+            .set_edge(|_, e: &&str| e.to_string())
+            .set_node(|_, n: &&str| n.to_string())
+            .set_hypergraph(|_, h: &Option<&str>| match h {
                 None => "?".to_string(),
                 Some(v) => v.to_string(),
-            }),
-            link: Rc::new(|_, l: &Option<&str>| match l {
+            })
+            .set_link(|_, l: &Option<&str>| match l {
                 None => "?".to_string(),
                 Some(v) => v.to_string(),
-            }),
-        };
+            });
         println!("{}", h.as_dot(formatter));
 
-        let formatter = DotFormatter {
-            edge: Rc::new(|_, e: &&str| e.to_string()),
-            node: Rc::new(|_, n: &&str| n.to_string()),
-            hypergraph: Rc::new(|_, h: &Option<&str>| match h {
+        let mut formatter = DotFormatter::new();
+        formatter
+            .set_edge(|_, e: &&str| e.to_string())
+            .set_node(|_, n: &&str| n.to_string())
+            .set_hypergraph(|_, h: &Option<&str>| match h {
                 None => "?".to_string(),
                 Some(v) => v.to_string(),
-            }),
-            link: Rc::new(|_, l: &Option<&str>| match l {
+            })
+            .set_link(|_, l: &Option<&str>| match l {
                 None => "?".to_string(),
                 Some(v) => v.to_string(),
-            }),
-        };
-        assert_eq!("strict digraph {\n\tlabel = \"?\";\n\t\"[0]\" [label=\"zero\"];\n\t\"[1]\" [label=\"one\"];\n\t\"[2]\" [style = dotted, label=\"two\"];\n\t\"[0]\" -> \"[2]\" [label=\"?\"];\n\t\"[2]\" -> \"[1]\" [label=\"?\"];\n\t\"[2]\" -> \"[5, 0]\" [label=\"eleven\"];\nsubgraph cluster {\n\tlabel = \"five\";\n\t\"[5, 0]\" [label=\"six\"];\n\t\"[5, 1]\" [label=\"seven\"];\n\t\"[5, 2]\" [style = dotted, label=\"eight\"];\n\t\"[5, 0]\" -> \"[5, 2]\" [label=\"?\"];\n\t\"[5, 2]\" -> \"[5, 1]\" [label=\"?\"];\nsubgraph cluster {\n\tlabel = \"twelve\";\n\t\"[5, 5, 0]\" [label=\"thirteen\"];\n}\n}\n}\n", &h.as_dot(formatter));
+            });
+        assert_eq!(
+        	&h.as_dot(formatter),
+        	"strict digraph \"[]\" {\n\tlabel = \"?\";\n\t\"[0]\" [label=\"zero\"];\n\t\"[1]\" [label=\"one\"];\n\t\"[2]\" [style = dotted, label=\"two\"];\n\t\"[0]\" -> \"[2]\" [label=\"?\"];\n\t\"[2]\" -> \"[1]\" [label=\"?\"];\n\t\"[2]\" -> \"[5, 0]\" [label=\"eleven\"];\nsubgraph \"cluster_[5]\" {\n\tlabel = \"five\";\n\t\"[5, 0]\" [label=\"six\"];\n\t\"[5, 1]\" [label=\"seven\"];\n\t\"[5, 2]\" [style = dotted, label=\"eight\"];\n\t\"[5, 0]\" -> \"[5, 2]\" [label=\"?\"];\n\t\"[5, 2]\" -> \"[5, 1]\" [label=\"?\"];\nsubgraph \"cluster_[5, 5]\" {\n\tlabel = \"twelve\";\n\t\"[5, 5, 0]\" [label=\"thirteen\"];\n}\n}\n}\n",
+        	);
     }
 }

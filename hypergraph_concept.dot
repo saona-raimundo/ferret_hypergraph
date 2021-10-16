@@ -1,0 +1,19 @@
+strict digraph "[]" {
+	label = "(main)hypergraph";
+	"[0]" [label="node"];
+	"[1]" [label="node"];
+	"[5]" [label="node"];
+	"[2]" [style = dotted, label="edge"];
+	"[0]" -> "[2]" [label="link"];
+	"[2]" -> "[1]" [label="link"];
+	"[2]" -> "[5]" [label="link"];
+	"[2]" -> "[7, 0]" [label="link"];
+subgraph "cluster_[7]" {
+	label = "(sub)hypergraph";
+	"[7, 0]" [label="node"];
+	"[7, 1]" [label="node"];
+	"[7, 2]" [style = dotted, label="edge"];
+	"[7, 0]" -> "[7, 2]" [label="link"];
+	"[7, 2]" -> "[7, 1]" [label="link"];
+}
+}

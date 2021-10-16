@@ -13,3 +13,4 @@ thiserror = "1.0.29"
 
 [dev-dependencies]
 test-case = "1.2.0"
+anyhow = "1.0.44"
