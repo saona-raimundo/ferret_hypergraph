@@ -617,3 +617,204 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         &mut self.value
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{traits::HypergraphClass, Main};
+    use test_case::test_case;
+
+    #[test_case(Hypergraph::<u8, u8>::new(), Main; "Main")]
+    #[test_case(Hypergraph::<u8, u8, u8, u8, Sub>::new(), Sub; "Sub")]
+    fn class<N, E, H, L, Ty: HypergraphClass>(h: Hypergraph<N, E, H, L, Ty>, expected: Ty) {
+        assert_eq!(h.class(), &expected)
+    }
+
+    #[test]
+    fn edge_value() {
+        let mut h = Hypergraph::<_, _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(h.edge_value([2]).unwrap(), &"two");
+    }
+
+    #[test]
+    fn element_value() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(
+            h.element_value([0]).unwrap(),
+            ElementValue::Node { value: &"zero" }
+        );
+        assert_eq!(
+            h.element_value([1]).unwrap(),
+            ElementValue::Node { value: &"one" }
+        );
+        assert_eq!(
+            h.element_value([2]).unwrap(),
+            ElementValue::Edge { value: &"two" }
+        );
+        assert_eq!(
+            h.element_value([3]).unwrap(),
+            ElementValue::Link { value: None }
+        );
+        assert_eq!(
+            h.element_value([4]).unwrap(),
+            ElementValue::Link { value: None }
+        );
+        assert_eq!(
+            h.element_value([5]).unwrap(),
+            ElementValue::Link {
+                value: Some(&"three")
+            }
+        );
+        assert_eq!(
+            h.element_value([6]).unwrap(),
+            ElementValue::Hypergraph {
+                value: Some(&"six")
+            }
+        );
+    }
+
+    #[test]
+    fn element_value_mut() {
+        let mut h = Hypergraph::<_, ()>::new();
+        h.add_node("zero", []).unwrap();
+        let element_value = h.element_value_mut([0]).unwrap();
+        if let ElementValue::Node { value } = element_value {
+            *value = "changed";
+        }
+        assert_eq!(
+            h.element_value([0]).unwrap(),
+            ElementValue::Node { value: &"changed" }
+        );
+    }
+
+    #[test]
+    fn hypergraph_value() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(h.hypergraph_value([6]).unwrap(), &Some("six"));
+    }
+
+    #[test]
+    fn ids() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(
+            h.ids().collect::<Vec<_>>(),
+            vec![
+                vec![],
+                vec![0],
+                vec![1],
+                vec![2],
+                vec![3],
+                vec![4],
+                vec![5],
+                vec![6]
+            ]
+        );
+    }
+
+    #[test]
+    fn links_of() {
+        let mut h = Hypergraph::<&str, &str>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        assert_eq!(
+            h.links_of([0]).unwrap(),
+            &vec![(vec![3], Direction::Outgoing)]
+        );
+        assert_eq!(
+            h.links_of([1]).unwrap(),
+            &vec![(vec![4], Direction::Incoming)]
+        );
+        assert_eq!(
+            h.links_of([2]).unwrap(),
+            &vec![
+                (vec![3], Direction::Incoming),
+                (vec![4], Direction::Outgoing)
+            ]
+        );
+    }
+
+    #[test]
+    fn link_value() {
+        let mut h = Hypergraph::<_, _, (), _>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        assert_eq!(h.link_value([3]).unwrap(), &None);
+        assert_eq!(h.link_value([4]).unwrap(), &None);
+        assert_eq!(h.link_value([5]).unwrap(), &Some("three"));
+    }
+
+    #[test]
+    fn neighbors() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "five", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+
+        assert!(h.neighbors(vec![]).is_err());
+        assert!(h.neighbors(vec![3]).is_err());
+        assert!(h.neighbors(vec![4]).is_err());
+
+        let mut neighbors = h.neighbors(vec![0]).unwrap();
+        assert_eq!(neighbors.next(), Some(&vec![2]));
+        assert_eq!(neighbors.next(), Some(&vec![2]));
+        assert_eq!(neighbors.next(), None);
+        let mut neighbors = h.neighbors(vec![1]).unwrap();
+        assert_eq!(neighbors.next(), None);
+        let mut neighbors = h.neighbors(vec![2]).unwrap();
+        assert_eq!(neighbors.next(), Some(&vec![1]));
+        assert_eq!(neighbors.next(), None);
+        let mut neighbors = h.neighbors(vec![6]).unwrap();
+        assert_eq!(neighbors.next(), None);
+    }
+
+    #[test]
+    fn next_id() {
+        let mut h = Hypergraph::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_link([0], [2], "three", []).unwrap();
+        h.add_hypergraph("six", []).unwrap();
+        assert_eq!(h.next_id([]).unwrap(), vec![0]);
+        assert_eq!(h.next_id([0]).unwrap(), vec![1]);
+        assert_eq!(h.next_id([1]).unwrap(), vec![2]);
+        assert_eq!(h.next_id([2]).unwrap(), vec![3]);
+        assert_eq!(h.next_id([3]).unwrap(), vec![4]);
+        assert_eq!(h.next_id([4]).unwrap(), vec![5]);
+        assert_eq!(h.next_id([5]).unwrap(), vec![6]);
+        assert_eq!(h.next_id([6]), None);
+        assert_eq!(h.next_id([0, 0]).unwrap(), vec![1]);
+    }
+
+    #[test]
+    fn node_value() {
+        let mut h = Hypergraph::<_, ()>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("one", []).unwrap();
+        assert_eq!(h.node_value([0]).unwrap(), &"zero");
+        assert_eq!(h.node_value([1]).unwrap(), &"one");
+    }
+}

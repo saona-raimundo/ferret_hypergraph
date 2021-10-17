@@ -144,7 +144,7 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
     ) -> String {
         let mut dot = String::new();
         if self.class().is_main() {
-            dot.push_str("strict digraph \"[]\" ")
+            dot.push_str("digraph \"[]\" ")
         } else if self.class().is_sub() {
             dot += &format!("subgraph \"cluster_{:?}\" ", pre_id) // shows as cluster, if supported
         }
@@ -361,6 +361,8 @@ impl<N, E, H, L, Ty: HypergraphClass> Hypergraph<N, E, H, L, Ty> {
 	        .unwrap()
 	        .write(self.as_dot(formatter).as_bytes())
 	        .expect("Writing failed in child process. We could not pass the dot representation of the hypergraph to dot.");
+        child.wait()
+            .expect("failed running graphviz dot. If graphviz is running well in your computer, contact us!");
 
         let child = process::Command::new("emulsion")
             .arg(&format!("target/ferret_hypergraph/png/{}.png", file_name))
@@ -426,7 +428,7 @@ mod tests {
             });
         assert_eq!(
         	&h.as_dot(formatter),
-        	"strict digraph \"[]\" {\n\tlabel = \"?\";\n\t\"[0]\" [label=\"zero\"];\n\t\"[1]\" [label=\"one\"];\n\t\"[2]\" [style = dotted, label=\"two\"];\n\t\"[0]\" -> \"[2]\" [label=\"?\"];\n\t\"[2]\" -> \"[1]\" [label=\"?\"];\n\t\"[2]\" -> \"[5, 0]\" [label=\"eleven\"];\nsubgraph \"cluster_[5]\" {\n\tlabel = \"five\";\n\t\"[5, 0]\" [label=\"six\"];\n\t\"[5, 1]\" [label=\"seven\"];\n\t\"[5, 2]\" [style = dotted, label=\"eight\"];\n\t\"[5, 0]\" -> \"[5, 2]\" [label=\"?\"];\n\t\"[5, 2]\" -> \"[5, 1]\" [label=\"?\"];\nsubgraph \"cluster_[5, 5]\" {\n\tlabel = \"twelve\";\n\t\"[5, 5, 0]\" [label=\"thirteen\"];\n}\n}\n}\n",
+        	"digraph \"[]\" {\n\tcompound = true;\n\tlabel = \"?\";\n\t\"[]\" [label = \"\", height = 0, width = 0, style = invisible];\n\t\"[0]\" [label=\"zero\"];\n\t\"[1]\" [label=\"one\"];\n\t\"[2]\" [style = dotted, label=\"two\"];\n\t\"[0]\" -> \"[2]\" [label = \"?\"];\n\t\"[2]\" -> \"[1]\" [label = \"?\"];\n\t\"[2]\" -> \"[5, 0]\" [label = \"eleven\"];\nsubgraph \"cluster_[5]\" {\n\tcompound = true;\n\tlabel = \"five\";\n\t\"[5]\" [label = \"\", height = 0, width = 0, style = invisible];\n\t\"[5, 0]\" [label=\"six\"];\n\t\"[5, 1]\" [label=\"seven\"];\n\t\"[5, 2]\" [style = dotted, label=\"eight\"];\n\t\"[5, 0]\" -> \"[5, 2]\" [label = \"?\"];\n\t\"[5, 2]\" -> \"[5, 1]\" [label = \"?\"];\nsubgraph \"cluster_[5, 5]\" {\n\tcompound = true;\n\tlabel = \"twelve\";\n\t\"[5, 5]\" [label = \"\", height = 0, width = 0, style = invisible];\n\t\"[5, 5, 0]\" [label=\"thirteen\"];\n}\n}\n}\n",
         	);
     }
 }
