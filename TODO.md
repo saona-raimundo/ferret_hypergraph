@@ -1,10 +1,16 @@
 # TODO
 
+traits
+
+WalkerIter for giving back a detachable iter and then only contruct walkers?
+
+Delete iterators::* files
+
 ## Hypergraph
 
 ### Conversions
 
-- Map
+- map
 - map_nodes
 - map_node(&mut self, index, function: FnMut(&mut N)) -> &mut Self
 - map_edges

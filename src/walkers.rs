@@ -1,5 +1,5 @@
-mod id_walk;
-mod neighbor_walk;
+mod walk_ids;
+mod walk_neighbors;
 
-pub use id_walk::IdWalk;
-pub use neighbor_walk::NeighborWalk;
+pub use walk_ids::WalkIds;
+pub use walk_neighbors::WalkNeighbors;

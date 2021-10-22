@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(h.edge_value([2]), Ok(&"two"));
         assert_eq!(h.set_edge_value([2], "new_two"), Ok("two"));
         assert_eq!(h.edge_value([2]), Ok(&"new_two"));
-        assert_eq!(h.neighbors([2]).unwrap().next(), Some(&vec![1]));
+        assert_eq!(h.neighbors([2]).next(), Some(&vec![1]));
     }
 
     #[test]
@@ -123,7 +123,7 @@ mod tests {
         assert_eq!(h.hypergraph_value([0]), Ok(&Some("zero")));
         assert_eq!(h.set_hypergraph_value([0], "new_zero"), Ok(Some("zero")));
         assert_eq!(h.hypergraph_value([0]), Ok(&Some("new_zero")));
-        assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
+        assert_eq!(h.neighbors([0]).next(), Some(&vec![2]));
     }
 
     #[test]
@@ -146,7 +146,7 @@ mod tests {
         assert_eq!(h.node_value([0]), Ok(&"zero"));
         assert_eq!(h.set_node_value([0], "new_zero"), Ok("zero"));
         assert_eq!(h.node_value([0]), Ok(&"new_zero"));
-        assert_eq!(h.neighbors([0]).unwrap().next(), Some(&vec![2]));
+        assert_eq!(h.neighbors([0]).next(), Some(&vec![2]));
         assert_eq!(h.node_value([1]), Ok(&"one"));
     }
 }

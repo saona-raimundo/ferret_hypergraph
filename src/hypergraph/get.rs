@@ -3,9 +3,9 @@ use indexmap::IndexMap;
 use crate::{
     direction::Direction,
     elements::{ElementType, ElementValue},
-    errors,
-    iterators::{IdIter, NeighborIter},
-    Hypergraph, HypergraphEnum, Sub,
+    errors, iterators,
+    traits::Walker,
+    walkers, Hypergraph, HypergraphEnum, Sub,
 };
 
 /// # Get
@@ -18,8 +18,8 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     // /// Returns an iterator over all valid edge ids.
-    // pub fn edge_ids<'a>(&'a self) -> EdgeIdIter<'a, N, E, H, L, Ty> {
-    //     EdgeIdIter::new(&self)
+    // pub fn edge_ids<'a>(&'a self) -> EdgeIterIds<'a, N, E, H, L, Ty> {
+    //     EdgeIterIds::new(&self)
     // }
 
     pub fn edge_value(&self, id: impl AsRef<[usize]>) -> Result<&E, errors::GetError> {
@@ -257,8 +257,9 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     /// Returns an iterator over all valid ids of `self`.
-    pub fn ids<'a>(&'a self) -> IdIter<'a, N, E, H, L, Ty> {
-        IdIter::new(&self)
+    pub fn ids<'a>(&'a self) -> iterators::WalkIter<'a, N, E, H, L, Ty, walkers::WalkIds> {
+        walkers::WalkIds::new().build_iter(self)
+        // IterIds::new(&self)
     }
 
     /// Returns the pair of gloalbal `id`s `(source, target)` if the link exists.
@@ -397,20 +398,22 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     }
 
     /// Returns an iterator over outgoing neighbors.
-    pub fn neighbors(
-        &self,
+    ///
+    /// If `id` is not a valid element, the iterator returns always `None`.
+    pub fn neighbors<'a>(
+        &'a self,
         id: impl AsRef<[usize]>,
-    ) -> Result<NeighborIter<N, E, H, L, Ty>, crate::iterators::neighbor_iter::NewError> {
+    ) -> iterators::WalkIter<'a, N, E, H, L, Ty, walkers::WalkNeighbors> {
         let direction = Direction::Outgoing;
-        self.neighbors_directed(id, direction)
+        walkers::WalkNeighbors::new(direction, id).build_iter(self)
     }
 
-    pub fn neighbors_directed(
-        &self,
+    pub fn neighbors_directed<'a>(
+        &'a self,
         id: impl AsRef<[usize]>,
         direction: Direction,
-    ) -> Result<NeighborIter<N, E, H, L, Ty>, crate::iterators::neighbor_iter::NewError> {
-        NeighborIter::new(self, id, direction)
+    ) -> iterators::WalkIter<'a, N, E, H, L, Ty, walkers::WalkNeighbors> {
+        walkers::WalkNeighbors::new(direction, id).build_iter(self)
     }
 
     /// Returns the next valid id.
@@ -773,20 +776,20 @@ mod tests {
         h.add_link([0], [2], "five", []).unwrap();
         h.add_hypergraph("six", []).unwrap();
 
-        assert!(h.neighbors(vec![]).is_err());
-        assert!(h.neighbors(vec![3]).is_err());
-        assert!(h.neighbors(vec![4]).is_err());
+        assert!(h.neighbors(vec![]).next().is_none());
+        assert!(h.neighbors(vec![3]).next().is_none());
+        assert!(h.neighbors(vec![4]).next().is_none());
 
-        let mut neighbors = h.neighbors(vec![0]).unwrap();
+        let mut neighbors = h.neighbors(vec![0]);
         assert_eq!(neighbors.next(), Some(&vec![2]));
         assert_eq!(neighbors.next(), Some(&vec![2]));
         assert_eq!(neighbors.next(), None);
-        let mut neighbors = h.neighbors(vec![1]).unwrap();
+        let mut neighbors = h.neighbors(vec![1]);
         assert_eq!(neighbors.next(), None);
-        let mut neighbors = h.neighbors(vec![2]).unwrap();
+        let mut neighbors = h.neighbors(vec![2]);
         assert_eq!(neighbors.next(), Some(&vec![1]));
         assert_eq!(neighbors.next(), None);
-        let mut neighbors = h.neighbors(vec![6]).unwrap();
+        let mut neighbors = h.neighbors(vec![6]);
         assert_eq!(neighbors.next(), None);
     }
 

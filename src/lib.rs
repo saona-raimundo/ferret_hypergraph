@@ -53,6 +53,10 @@ pub mod iterators;
 pub mod traits;
 /// Walkers for a hypergraph.
 pub mod walkers;
+/// All one usually needs to use this library.
+pub mod prelude {
+    pub use crate::traits::*;
+}
 
 pub use direction::Direction;
 pub use hypergraph::*;
