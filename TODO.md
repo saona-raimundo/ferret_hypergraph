@@ -1,11 +1,5 @@
 # TODO
 
-traits
-
-WalkerIter for giving back a detachable iter and then only contruct walkers?
-
-Delete iterators::* files
-
 ## Hypergraph
 
 ### Conversions
@@ -88,12 +82,6 @@ Increase your current hypergraph by other elements.
     - Use get::ids
 
 ### Walkers
-
-Check out [Walker](https://docs.rs/petgraph/0.6.0/petgraph/visit/trait.Walker.html) and [Walker trait](https://github.com/petgraph/petgraph/issues/13)
-
-This is to visit without borrowing from the data-structure.
-
-I propose to simply clone the ids (`Vec<ID>`).
 
 # Traits
 

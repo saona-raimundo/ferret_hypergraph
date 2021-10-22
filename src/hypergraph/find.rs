@@ -42,7 +42,13 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     pub fn find_element_by_value(
         &self,
         value: ElementValue<&N, &E, &H, &L>,
-    ) -> Result<Vec<usize>, errors::FindError> {
+    ) -> Result<Vec<usize>, errors::FindError>
+    where
+        N: PartialEq,
+        E: PartialEq,
+        H: PartialEq,
+        L: PartialEq,
+    {
         match value {
             ElementValue::Edge { value } => self.find_edge_by_value(value),
             ElementValue::Hypergraph { value } => self.find_hypergraph_by_value(value),
@@ -51,22 +57,66 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         }
     }
 
-    pub fn find_node_by_value(&self, value: &N) -> Result<Vec<usize>, errors::FindError> {
-        todo!()
-    }
-
-    pub fn find_edge_by_value(&self, value: &E) -> Result<Vec<usize>, errors::FindError> {
-        todo!()
-    }
-
-    pub fn find_link_by_value(&self, value: Option<&L>) -> Result<Vec<usize>, errors::FindError> {
-        todo!()
+    pub fn find_edge_by_value(&self, value: &E) -> Result<Vec<usize>, errors::FindError>
+    where
+        E: PartialEq,
+    {
+        let edge_ids = self.ids().filter(|id| self.contains_edge(id));
+        edge_ids
+            .map(|id| {
+                let edge_value = self.edge_value(&id).unwrap(); // Never fails since id refers to an edge
+                (id, edge_value)
+            })
+            .find(|(_, edge_value)| *value == **edge_value)
+            .map(|(id, _)| id)
+            .ok_or(errors::FindError::NoEdge)
     }
 
     pub fn find_hypergraph_by_value(
         &self,
         value: Option<&H>,
-    ) -> Result<Vec<usize>, errors::FindError> {
-        todo!()
+    ) -> Result<Vec<usize>, errors::FindError>
+    where
+        H: PartialEq,
+    {
+        let hypergraph_ids = self.ids().filter(|id| self.contains_hypergraph(id));
+        hypergraph_ids
+            .map(|id| {
+                let hypergraph_value = self.hypergraph_value(&id).unwrap().as_ref(); // Never fails since id refers to an edge
+                (id, hypergraph_value)
+            })
+            .find(|(_, hypergraph_value)| value == *hypergraph_value)
+            .map(|(id, _)| id)
+            .ok_or(errors::FindError::NoHypergraph)
+    }
+
+    pub fn find_link_by_value(&self, value: Option<&L>) -> Result<Vec<usize>, errors::FindError>
+    where
+        L: PartialEq,
+    {
+        let link_ids = self.ids().filter(|id| self.contains_link(id));
+        link_ids
+            .map(|id| {
+                let link_value = self.link_value(&id).unwrap().as_ref(); // Never fails since id refers to an edge
+                (id, link_value)
+            })
+            .find(|(_, link_value)| value == *link_value)
+            .map(|(id, _)| id)
+            .ok_or(errors::FindError::NoLink)
+    }
+
+    pub fn find_node_by_value(&self, value: &N) -> Result<Vec<usize>, errors::FindError>
+    where
+        N: PartialEq,
+    {
+        let node_ids = self.ids().filter(|id| self.contains_node(id));
+        node_ids
+            .map(|id| {
+                let node_value = self.node_value(&id).unwrap(); // Never fails since id refers to a node
+                (id, node_value)
+            })
+            .find(|(_, node_value)| *value == **node_value)
+            .map(|(id, _)| id)
+            .ok_or(errors::FindError::NoNode)
     }
 }

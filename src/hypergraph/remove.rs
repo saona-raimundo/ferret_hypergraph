@@ -235,7 +235,13 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     pub fn remove_element_by_value(
         &mut self,
         value: ElementValue<&N, &E, &H, &L>,
-    ) -> Result<(), errors::FindError> {
+    ) -> Result<(), errors::FindError>
+    where
+        N: PartialEq,
+        E: PartialEq,
+        H: PartialEq,
+        L: PartialEq,
+    {
         let id = self.find_element_by_value(value)?;
         self.remove(id).unwrap(); // Never fails since id refers to a valid element
         Ok(())
