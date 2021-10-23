@@ -281,4 +281,16 @@ mod tests {
 
         assert_eq!(h.ids().collect::<Vec<_>>(), vec![vec![], vec![1]]);
     }
+
+    #[test]
+    fn remove_element_by_value() {
+        let mut h = Hypergraph::<_, ()>::new();
+        h.add_node("zero", []).unwrap();
+        h.add_node("zero", []).unwrap();
+        let result = h.remove_element_by_value(ElementValue::Node { value: &"zero" });
+        assert_eq!(result, Ok(()));
+
+        println!("{:#?}", h);
+        assert_eq!(h.ids().collect::<Vec<_>>(), vec![vec![], vec![1]]);
+    }
 }

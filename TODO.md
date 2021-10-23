@@ -2,7 +2,7 @@
 
 ## Hypergraph
 
-### Conversions
+### Convert
 
 - map
 - map_nodes
@@ -27,7 +27,7 @@ Increase your current hypergraph by other elements.
 - extend_with_links()
 - extend_with_hypergraphs()
 
-### Filtering
+### Filter
 
 - filter_ref(&self) -> Hypergraph<&*>
 - filter_ref_mut(&mut self) -> Hypergraph<&mut *>
@@ -35,15 +35,9 @@ Increase your current hypergraph by other elements.
 
 ### Find
 
-- Needs (PartialEq)
-- Each method with different constrains
-- Better than with specific ids iterator (see Get)
-  - EdgeIds
-  - HypergraphIds
-  - LinkIds
-  - NodeIds
+- Test
 
-### Getters
+### Get
 
 - neighbors (iterator over ids)
   - NeighborWalk
@@ -71,17 +65,13 @@ Increase your current hypergraph by other elements.
 - IndexMut
 - Vec<usize>
 
-### Optimizations
+### Optimize
 
 - Shrink to fit
 
-### Removal
+### Remove
 
-- remove_element_by_value
-  - Need comparison
-    - Use get::ids
-
-### Walkers
+### Walk
 
 # Traits
 
