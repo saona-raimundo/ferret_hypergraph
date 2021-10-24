@@ -734,10 +734,13 @@ mod tests {
 
     #[test]
     fn links_of() {
-        let mut h = Hypergraph::<&str, &str>::new();
+        let mut h = Hypergraph::<&str, &str, &str>::new();
         h.add_node("zero", []).unwrap();
         h.add_node("one", []).unwrap();
         h.add_edge([0], [1], "two", []).unwrap();
+        let subhypergraph_id = h.add_hypergraph("five", []).unwrap();
+        h.add_node("zero", subhypergraph_id).unwrap();
+
         assert_eq!(
             h.links_of([0]).unwrap(),
             &vec![(vec![3], Direction::Outgoing)]
@@ -753,6 +756,7 @@ mod tests {
                 (vec![4], Direction::Outgoing)
             ]
         );
+        assert_eq!(h.links_of([5, 0]).unwrap(), &vec![]);
     }
 
     #[test]
