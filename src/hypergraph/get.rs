@@ -292,7 +292,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         }
         let hypergraph = self.hypergraph_of(&id)?;
         let local_id = id.last().unwrap(); // Never fails since id refers to a linkable element
-        let links = match hypergraph.element_type(&id).unwrap() // Never fails since id refers to a linkable element
+        let links = match hypergraph.element_type([*local_id]).unwrap() // Never fails since id refers to a linkable element
         {
             ElementType::Edge => {
                 hypergraph

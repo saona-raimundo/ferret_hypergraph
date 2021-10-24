@@ -21,6 +21,8 @@
 
 Increase your current hypergraph by other elements. 
 
+Check out core::iter::Extend
+
 - extend()
 - extend_with_nodes()
 - extend_with_edges()
@@ -29,9 +31,26 @@ Increase your current hypergraph by other elements.
 
 ### Filter
 
-- filter_ref(&self) -> Hypergraph<&*>
+- filter_ref<P>(&self, predicate: P) -> Hypergraph<&*> 
+  where 
+  P: [FnMut](https://doc.rust-lang.org/std/ops/trait.FnMut.html)(&Self, Vec<usize>) -> [bool](https://doc.rust-lang.org/std/primitive.bool.html),
+  - Implemented on top of get::ids
+  - Ids should be preserved in the new hypergraph
+  - Can you assume that P will be evaluated only on valid ids?
+  - Would it not be better to implement....?
+    - IntoIterator, for
+      - Hypergraph<*>
+      - &Hypergraph<*>
+      - &mut Hypergraph<*>
+    -  rayon::iter::IntoParallelIterator
+    - std::iter::FromIterator
+    - What should be the elements?
+      - (id, element_value)?
 - filter_ref_mut(&mut self) -> Hypergraph<&mut *>
-- filter(self) -> Hypergraph<*>
+- filter<P>(self, predicate: P) -> Hypergraph<*> 
+  where 
+  P: [FnMut](https://doc.rust-lang.org/std/ops/trait.FnMut.html)(&Self, Vec<usize>) -> [bool](https://doc.rust-lang.org/std/primitive.bool.html), 
+  - This might be better implemented through extend
 
 ### Find
 
