@@ -9,17 +9,18 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
     /// An empty `location` means the main hypergraph.
     ///
     /// Returns `None` if it does not exists.
-    pub fn find_link_id(
-        &mut self,
+    pub fn find_link_id<'a>(
+        &self,
         source: impl AsRef<[usize]>,
         target: impl AsRef<[usize]>,
-        value: &Option<L>,
+        value: impl Into<Option<&'a L>>,
         location: impl AsRef<[usize]>,
     ) -> Result<Vec<usize>, errors::FindError>
     where
-        L: PartialEq,
+        L: 'a + PartialEq,
     {
         let location = location.as_ref();
+        let value = value.into();
         if !self.contains_hypergraph(location) {
             Err(errors::NoHypergraph(location.to_vec()))?
         }
@@ -28,9 +29,7 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
         let source = source.as_ref().to_vec();
         let target = target.as_ref().to_vec();
         for (local_id, link_full) in links {
-            if (link_full.0.as_ref(), &link_full.1, &link_full.2)
-                == (value.as_ref(), &source, &target)
-            {
+            if (link_full.0.as_ref(), &link_full.1, &link_full.2) == (value, &source, &target) {
                 let mut location = location.to_vec();
                 location.push(*local_id);
                 return Ok(location);
@@ -118,5 +117,40 @@ impl<N, E, H, L, Ty> Hypergraph<N, E, H, L, Ty> {
             .find(|(_, node_value)| *value == **node_value)
             .map(|(id, _)| id)
             .ok_or(errors::FindError::NoNode)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // use test_case::test_case;
+
+    #[test]
+    fn find_link_id() {
+        // Links without values
+        let mut h = Hypergraph::<&str, &str, (), _>::new();
+        let node_0_id = h.add_node("zero", []).unwrap();
+        let node_1_id = h.add_node("one", []).unwrap();
+        let edge_id = h.add_edge([0], [1], "two", []).unwrap();
+
+        let result = h.find_link_id(&node_0_id, &edge_id, None, []);
+        assert_eq!(result, Ok(vec![3]));
+        let result = h.find_link_id(&edge_id, &node_1_id, None, []);
+        assert_eq!(result, Ok(vec![4]));
+
+        // Links with values
+        h.add_link(&node_0_id, &edge_id, "five", []).unwrap();
+        h.add_link(&edge_id, &node_1_id, "six", []).unwrap();
+
+        let result = h.find_link_id(&node_0_id, &edge_id, &"five", []);
+        assert_eq!(result, Ok(vec![5]));
+        let result = h.find_link_id(&edge_id, &node_1_id, &"six", []);
+        assert_eq!(result, Ok(vec![6]));
+
+        // Coherence with get::link_value
+        let link_id = h.find_link_id(&node_0_id, &edge_id, &"five", []).unwrap();
+        let link_value = h.link_value(link_id).unwrap();
+        let result = h.find_link_id(&node_0_id, &edge_id, link_value, []);
+        assert_eq!(result, Ok(vec![5]));
     }
 }

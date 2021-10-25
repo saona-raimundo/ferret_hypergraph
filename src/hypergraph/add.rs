@@ -335,10 +335,10 @@ mod tests {
         assert_eq!(vec![2], edge_id);
         assert_eq!(
             Err(errors::FindError::NoLink),
-            h.find_link_id([0], [1], &None, [])
+            h.find_link_id([0], [1], None, [])
         );
-        assert_eq!(Ok(vec![3]), h.find_link_id([0], [2], &None, []));
-        assert_eq!(Ok(vec![4]), h.find_link_id([2], [1], &None, []));
+        assert_eq!(Ok(vec![3]), h.find_link_id([0], [2], None, []));
+        assert_eq!(Ok(vec![4]), h.find_link_id([2], [1], None, []));
         assert!(h.contains_node(node_0_id));
         assert!(h.contains_node(node_1_id));
         assert_eq!(h.edge_value(&edge_id).unwrap(), &"two");

@@ -4,16 +4,18 @@
 
 ### Convert
 
-- map
-- map_nodes
-- map_node(&mut self, index, function: FnMut(&mut N)) -> &mut Self
+- map(&mut self, function: impl FnMut(id, &ElementValue<N, E, H, L>) -> ElementValue<N2, E2, H2, L2>)
+- map_nodes(&mut self, function: impl FnMut(id, &N) -> N2)
+  - Needs Extend, as in [petgraph::map](https://docs.rs/petgraph/0.6.0/petgraph/graph/struct.Graph.html#method.map)
+- map_node(&mut self, id, function: impl FnMut(&N) -> N) -> &mut Self
+  - Easy to implement
 - map_edges
 - map_edge
 - map_links
 - map_link
 - map_hypergraphs
 - map_hypergraph
-- dot
+- [x] dot
 - into_graph(&self) -> petgraph::Graph<&Vec<usize>, &Vec<usize>>
 - into_hypergraph(&self) -> hypergraph::Hypegraph<&Vec<usize>, &Vec<usize>>
 
@@ -21,7 +23,7 @@
 
 Increase your current hypergraph by other elements. 
 
-Check out core::iter::Extend
+Check out [core::iter::Extend](https://doc.rust-lang.org/core/iter/trait.Extend.html)
 
 - extend()
 - extend_with_nodes()
@@ -50,6 +52,9 @@ Check out core::iter::Extend
 - filter<P>(self, predicate: P) -> Hypergraph<*> 
   where 
   P: [FnMut](https://doc.rust-lang.org/std/ops/trait.FnMut.html)(&Self, Vec<usize>) -> [bool](https://doc.rust-lang.org/std/primitive.bool.html), 
+  - One implementation
+    - for id in self.ids
+    - if predicate(self, id) {remove } 
   - This might be better implemented through extend
 
 ### Find
