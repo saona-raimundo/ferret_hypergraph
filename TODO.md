@@ -60,6 +60,12 @@ Check out [core::iter::Extend](https://doc.rust-lang.org/core/iter/trait.Extend.
 ### Find
 
 - Test
+  - [x] find_link_id
+  - find_element_by_value
+  - find_edge_by_value
+  - find_hypergraph_by_value
+  - find_link_by_value
+  - find_node_by_value
 
 ### Get
 
