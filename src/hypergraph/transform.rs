@@ -78,11 +78,11 @@ mod tests {
     #[test]
     fn preappend_id() {
         let mut h = Hypergraph::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        h.add_link([0], [2], "three", []).unwrap();
-        h.add_hypergraph("six", []).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
+        h.add_link([0], [2], "three").unwrap();
+        h.add_hypergraph("six");
         h.preappend_id([1]);
 
         assert_eq!(

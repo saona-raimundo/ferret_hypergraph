@@ -389,16 +389,16 @@ mod tests {
     #[test]
     fn as_dot() {
         let mut h = Hypergraph::<&str, &str, &str, &str>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        h.add_hypergraph("five", []).unwrap();
-        h.add_node("six", [5]).unwrap();
-        h.add_node("seven", [5]).unwrap();
-        h.add_edge([5, 0], [5, 1], "eight", [5]).unwrap();
-        h.add_link([2], [5, 0], "eleven", []).unwrap();
-        h.add_hypergraph("twelve", [5]).unwrap();
-        h.add_node("thirteen", [5, 5]).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
+        h.add_hypergraph("five").unwrap();
+        h.add_node_in("six", [5]).unwrap();
+        h.add_node_in("seven", [5]).unwrap();
+        h.add_edge_in([5, 0], [5, 1], "eight", [5]).unwrap();
+        h.add_link([2], [5, 0], "eleven").unwrap();
+        h.add_hypergraph_in("twelve", [5]).unwrap();
+        h.add_node_in("thirteen", [5, 5]).unwrap();
 
         let mut formatter = DotFormatter::new();
         formatter

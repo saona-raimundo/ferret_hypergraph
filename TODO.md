@@ -1,6 +1,10 @@
 # TODO
 
-## Hypergraph 
+## Hypergraph
+
+### Tests
+
+- Refactor tests to use only some model hypergraphs, defined at library test level
 
 ### Convert
 
@@ -15,7 +19,9 @@
 - map_link
 - map_hypergraphs
 - map_hypergraph
+
 - [x] dot
+
 - into_graph(&self) -> petgraph::Graph<&Vec<usize>, &Vec<usize>>
 - into_hypergraph(&self) -> hypergraph::Hypegraph<&Vec<usize>, &Vec<usize>>
 
@@ -44,7 +50,7 @@ Check out [core::iter::Extend](https://doc.rust-lang.org/core/iter/trait.Extend.
       - Hypergraph<*>
       - &Hypergraph<*>
       - &mut Hypergraph<*>
-    -  rayon::iter::IntoParallelIterator
+    - rayon::iter::IntoParallelIterator
     - std::iter::FromIterator
     - What should be the elements?
       - (id, element_value)?
@@ -61,6 +67,7 @@ Check out [core::iter::Extend](https://doc.rust-lang.org/core/iter/trait.Extend.
 
 - Test
   - [x] find_link_id
+  
   - find_element_by_value
   - find_edge_by_value
   - find_hypergraph_by_value
@@ -72,14 +79,16 @@ Check out [core::iter::Extend](https://doc.rust-lang.org/core/iter/trait.Extend.
 - neighbors (iterator over ids)
   - NeighborWalk
 - neighbors_mut (iterator)
-  - 
+  -
 - neighbors_directed (iterator)
 - neighbors_directed_mut (iterator)
+
 - [x] Ids (iterator)
   - EdgeIds
   - HypergraphIds
   - LinkIds
   - NodeIds
+
 - References (iterator)
 - References_mut (iterator)
 - externals

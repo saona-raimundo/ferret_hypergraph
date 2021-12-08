@@ -256,11 +256,11 @@ mod tests {
     #[test]
     fn remove() {
         let mut h = Hypergraph::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        h.add_link([0], [2], "five", []).unwrap();
-        h.add_hypergraph("six", []).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
+        h.add_link([0], [2], "five").unwrap();
+        h.add_hypergraph("six");
 
         println!("{:#?}", h);
         assert_eq!(
@@ -285,8 +285,8 @@ mod tests {
     #[test]
     fn remove_element_by_value() {
         let mut h = Hypergraph::<_, ()>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("zero", []).unwrap();
+        h.add_node("zero");
+        h.add_node("zero");
         let result = h.remove_element_by_value(ElementValue::Node { value: &"zero" });
         assert_eq!(result, Ok(()));
 

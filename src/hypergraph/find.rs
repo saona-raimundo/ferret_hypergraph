@@ -129,9 +129,9 @@ mod tests {
     fn find_link_id() {
         // Links without values
         let mut h = Hypergraph::<&str, &str, (), _>::new();
-        let node_0_id = h.add_node("zero", []).unwrap();
-        let node_1_id = h.add_node("one", []).unwrap();
-        let edge_id = h.add_edge([0], [1], "two", []).unwrap();
+        let node_0_id = h.add_node("zero");
+        let node_1_id = h.add_node("one");
+        let edge_id = h.add_edge([0], [1], "two").unwrap();
 
         let result = h.find_link_id(&node_0_id, &edge_id, None, []);
         assert_eq!(result, Ok(vec![3]));
@@ -139,8 +139,8 @@ mod tests {
         assert_eq!(result, Ok(vec![4]));
 
         // Links with values
-        h.add_link(&node_0_id, &edge_id, "five", []).unwrap();
-        h.add_link(&edge_id, &node_1_id, "six", []).unwrap();
+        h.add_link(&node_0_id, &edge_id, "five").unwrap();
+        h.add_link(&edge_id, &node_1_id, "six").unwrap();
 
         let result = h.find_link_id(&node_0_id, &edge_id, &"five", []);
         assert_eq!(result, Ok(vec![5]));

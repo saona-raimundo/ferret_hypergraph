@@ -543,7 +543,7 @@ mod tests {
     #[test_case(
         {
             let mut h = Hypergraph::<(), ()>::new();
-            h.add_hypergraph((), []).unwrap();
+            h.add_hypergraph(());
             h
         }, //
         2; //
@@ -552,10 +552,10 @@ mod tests {
     #[test_case(
         {
             let mut h = Hypergraph::<(), ()>::new();
-            h.add_hypergraph((), []).unwrap();
-            h.add_hypergraph((), [0]).unwrap();
-            h.add_hypergraph((), [0, 0]).unwrap();
-            h.add_hypergraph((), []).unwrap();
+            h.add_hypergraph(());
+            h.add_hypergraph_in((), [0]).unwrap();
+            h.add_hypergraph_in((), [0, 0]).unwrap();
+            h.add_hypergraph(());
             h
         }, //
         4; //

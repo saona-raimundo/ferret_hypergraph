@@ -47,11 +47,11 @@ mod tests {
     #[test]
     fn walk_next() {
         let mut h = Hypergraph::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
-        h.add_link([0], [2], "three", []).unwrap();
-        h.add_hypergraph("six", []).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
+        h.add_link([0], [2], "three").unwrap();
+        h.add_hypergraph("six").unwrap();
         let mut id_walk = WalkIds::new();
 
         assert_eq!(id_walk.walk_next(&h).unwrap(), vec![]);

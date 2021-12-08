@@ -22,7 +22,7 @@ impl<N, E, H, L> Hypergraph<N, E, H, L, Main> {
     {
         let location = location.as_ref();
         let mut other: Hypergraph<N, E, H, L, Sub> = other.clone().into_sub();
-        let new_hypergraph_id = self.add_hypergraph(other.value().clone(), &location)?;
+        let new_hypergraph_id = self.add_hypergraph_in(other.value().clone(), &location)?;
         let subhypergraph = self.subhypergraph_mut(&new_hypergraph_id).unwrap(); // Never fails since new_hypergraph_id refers to a hypergraph
         mem::swap(subhypergraph, &mut other);
         subhypergraph.preappend_id(location);

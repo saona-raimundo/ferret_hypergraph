@@ -105,9 +105,9 @@ mod tests {
     #[test]
     fn set_edge_value() {
         let mut h = Hypergraph::<_, _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
         assert_eq!(h.edge_value([2]), Ok(&"two"));
         assert_eq!(h.set_edge_value([2], "new_two"), Ok("two"));
         assert_eq!(h.edge_value([2]), Ok(&"new_two"));
@@ -117,9 +117,9 @@ mod tests {
     #[test]
     fn set_hypergraph_value() {
         let mut h = Hypergraph::<_, _, _>::new();
-        h.add_hypergraph("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_hypergraph("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
         assert_eq!(h.hypergraph_value([0]), Ok(&Some("zero")));
         assert_eq!(h.set_hypergraph_value([0], "new_zero"), Ok(Some("zero")));
         assert_eq!(h.hypergraph_value([0]), Ok(&Some("new_zero")));
@@ -129,9 +129,9 @@ mod tests {
     #[test]
     fn set_link_value() {
         let mut h = Hypergraph::<_, _, (), _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
         assert_eq!(h.link_value([3]), Ok(&None));
         assert_eq!(h.set_link_value([3], "new_three"), Ok(None));
         assert_eq!(h.link_value([3]), Ok(&Some("new_three")));
@@ -140,9 +140,9 @@ mod tests {
     #[test]
     fn set_node_value() {
         let mut h = Hypergraph::<_, _>::new();
-        h.add_node("zero", []).unwrap();
-        h.add_node("one", []).unwrap();
-        h.add_edge([0], [1], "two", []).unwrap();
+        h.add_node("zero");
+        h.add_node("one");
+        h.add_edge([0], [1], "two").unwrap();
         assert_eq!(h.node_value([0]), Ok(&"zero"));
         assert_eq!(h.set_node_value([0], "new_zero"), Ok("zero"));
         assert_eq!(h.node_value([0]), Ok(&"new_zero"));
